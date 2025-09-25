@@ -105,6 +105,51 @@ def _build_approval_tool(slack_context: Optional[SlackContext]) -> StructuredToo
     )
 
 
+def _build_user_question_tool(slack_context: Optional[SlackContext]) -> StructuredTool:
+    """Create a structured tool that asks a Slack user for input via an interrupt."""
+
+    context_payload = slack_context.as_json() if slack_context else None
+
+    def ask_user(
+        question: str,
+        context: str | None = None,
+    ) -> str:
+        """Pause execution, ask the user a question, and resume with their answer."""
+
+        question_payload: Dict[str, Any] = {
+            "type": "user_question",
+            "question": question,
+            "context": context,
+        }
+
+        if context_payload is not None:
+            question_payload["slack_context"] = context_payload
+
+        resume_value = interrupt(question_payload)
+
+        if isinstance(resume_value, dict):
+            answer = resume_value.get("answer")
+            if isinstance(answer, str):
+                return answer
+
+        if isinstance(resume_value, str):
+            return resume_value
+
+        raise ValueError(
+            "ask_user tool expected an answer string in the resume payload, "
+            "but received an unsupported response."
+        )
+
+    return StructuredTool.from_function(
+        func=ask_user,
+        name="ask_user",
+        description=(
+            "Pause execution and request information from the user. "
+            "Provide a concise question and optional context that will be shown in Slack."
+        ),
+    )
+
+
 async def ask_agent(
     payload: dict[str, Any] | Command,
     *,
@@ -121,6 +166,7 @@ async def ask_agent(
 
     tools = list(await client.get_tools())
     tools.append(_build_approval_tool(slack_context))
+    tools.append(_build_user_question_tool(slack_context))
 
     async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
         await checkpointer.setup()

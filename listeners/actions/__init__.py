@@ -5,6 +5,8 @@ from listeners.listener_utils.listener_constants import (
     APPROVAL_ACTION_EDIT,
     APPROVAL_ACTION_REJECT,
     APPROVAL_EDIT_MODAL_CALLBACK,
+    QUESTION_ACTION_OPEN_MODAL,
+    QUESTION_MODAL_CALLBACK,
 )
 
 from .approval_actions import (
@@ -14,6 +16,7 @@ from .approval_actions import (
     submit_edit_request,
 )
 from .set_user_selection import set_user_selection
+from .question_actions import open_question_modal, submit_question_modal
 
 
 def register(app: App):
@@ -22,3 +25,5 @@ def register(app: App):
     app.action(APPROVAL_ACTION_REJECT)(reject_request)
     app.action(APPROVAL_ACTION_EDIT)(start_edit_request)
     app.view(APPROVAL_EDIT_MODAL_CALLBACK)(submit_edit_request)
+    app.action(QUESTION_ACTION_OPEN_MODAL)(open_question_modal)
+    app.view(QUESTION_MODAL_CALLBACK)(submit_question_modal)

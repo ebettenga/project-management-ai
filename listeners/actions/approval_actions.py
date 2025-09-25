@@ -13,8 +13,8 @@ from langgraph.types import Command
 from listeners.listener_utils.approvals import (
     build_agent_response_blocks,
     extract_last_ai_text,
-    handle_approval_interrupt,
 )
+from listeners.listener_utils.interrupts import handle_agent_interrupt
 from listeners.listener_utils.listener_constants import (
     APPROVAL_ACTION_APPROVE,
     APPROVAL_ACTION_EDIT,
@@ -208,7 +208,7 @@ async def _resume_agent(
             slack_context=slack_context,
         )
     except GraphInterrupt as interrupt:
-        await handle_approval_interrupt(
+        await handle_agent_interrupt(
             client=client,
             interrupt=interrupt,
             channel_id=request["channel_id"],

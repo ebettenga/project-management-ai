@@ -4,12 +4,11 @@ from slack_bolt import Ack, BoltContext, Say
 from slack_sdk import WebClient
 
 from ai.agents.react_agents.all_tools import SlackContext, ask_agent
-from langgraph.errors import GraphInterrupt
 from listeners.listener_utils.approvals import (
     build_agent_response_blocks,
     extract_last_ai_text,
-    handle_approval_interrupt,
 )
+from listeners.listener_utils.interrupts import handle_agent_interrupt
 
 """
 Callback for handling the 'ask-llm' command. It acknowledges the command, retrieves the user's ID and prompt,
@@ -58,18 +57,19 @@ async def llm_callback(
             )
 
             print("response", response)
-            
-            if '__interrupt__' in response:
-                await handle_approval_interrupt(
-                    client=client,
-                    interrupt=response['__interrupt__'][0],
-                    channel_id=channel_id,
-                    user_id=user_id,
-                    thread_ts=thread_ts,
-                    thread_id=thread_id,
-                    prompt=prompt,
-                    logger=logger,
-                )
+
+            if "__interrupt__" in response:
+                for interrupt in response["__interrupt__"]:
+                    await handle_agent_interrupt(
+                        client=client,
+                        interrupt=interrupt,
+                        channel_id=channel_id,
+                        user_id=user_id,
+                        thread_ts=thread_ts,
+                        thread_id=thread_id,
+                        prompt=prompt,
+                        logger=logger,
+                    )
                 return
 
             text = extract_last_ai_text(response["messages"])
