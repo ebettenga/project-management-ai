@@ -10,6 +10,7 @@ services:
       - "${MCP_SERVER_PORT:-8080}:8080"
     networks:
       - mcp-network
+    command: ["--transport=streamable-http"]
 
   postgres:
     image: postgres:16-alpine
