@@ -12,6 +12,7 @@ from listeners.agent_interrupts import (
     create_approval_tool,
     create_user_question_tool,
 )
+from ai.agents.react_agents.tool_wrappers import tool_approve
 from listeners.agent_interrupts.common import SlackContext
 
 load_dotenv()
@@ -65,6 +66,22 @@ async def ask_agent(
         config["configurable"].update({"thread_id": thread_id})
 
     tools = list(await client.get_tools())
+
+    wrapped_tools = []
+    for tool in tools:
+        if getattr(tool, "name", "") == "get_datetime":
+            wrapped_tools.append(
+                tool_approve(
+                    tool,
+                    summary="Allow the agent to fetch the current date and time?",
+                    context="The agent is requesting to run the time helper tool to retrieve the current UTC timestamp.",
+                    allow_edit=False,
+                    allow_reject=True,
+                )
+            )
+        else:
+            wrapped_tools.append(tool)
+    tools = wrapped_tools
     tools.append(create_approval_tool(slack_context))
     tools.append(create_user_question_tool(slack_context))
 
