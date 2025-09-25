@@ -81,16 +81,13 @@ async def handle_question_interrupt(
         }
     )
 
-    post_kwargs: dict[str, Any] = {
-        "channel": channel_id,
-        "blocks": blocks,
-    }
-    if thread_ts:
-        post_kwargs["thread_ts"] = thread_ts
+    response = await client.chat_postMessage(
+        channel=channel_id,
+        blocks=blocks,
+        text=question,
+    )
 
-    response = await client.chat_postMessage(**post_kwargs)
-
-    conversation_ts = thread_ts or response["ts"]
+    conversation_ts = response["ts"]
 
     save_question_request(
         interrupt.id,

@@ -124,16 +124,13 @@ async def handle_approval_interrupt(
         }
     )
 
-    post_kwargs: dict[str, Any] = {
-        "channel": channel_id,
-        "blocks": blocks,
-    }
-    if thread_ts:
-        post_kwargs["thread_ts"] = thread_ts
+    response = await client.chat_postMessage(
+        channel=channel_id,
+        blocks=blocks,
+        text=summary,
+    )
 
-    response = await client.chat_postMessage(**post_kwargs)
-
-    conversation_ts = thread_ts or response["ts"]
+    conversation_ts = response["ts"]
 
     save_approval_request(
         interrupt.id,
