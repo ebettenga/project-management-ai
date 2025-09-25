@@ -8,7 +8,7 @@ dependencies = [
     "aiohttp>=3.12.15",
     "anthropic==0.65.0",
     "debugpy>=1.8.17",
-    "google-cloud-aiplatform==1.111.0",
+    "google-cloud-aiplatform==1.116.0",
     "langchain-mcp-adapters>=0.1.10",
     "langchain[openai]>=0.3.27",
     "langgraph>=0.6.7",
