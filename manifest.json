@@ -31,6 +31,11 @@
                 "command": "/ask",
                 "description": "Search Bolty's saved memories.",
                 "should_escape": false
+            },
+            {
+                "command": "/forget",
+                "description": "find and delete saved memories.",
+                "should_escape": false
             }
         ]
     },
