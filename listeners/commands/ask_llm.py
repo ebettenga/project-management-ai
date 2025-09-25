@@ -70,16 +70,15 @@ async def llm_callback(
                         logger=logger,
                     )
                 return
-
-            text = extract_last_ai_text(response["messages"])
-            if not text:
-                text = "(agent did not return text)"
-            await client.chat_postMessage(
-                channel=channel_id,
-                user=user_id,
-                thread_ts=thread_ts,
-                blocks=build_agent_response_blocks(prompt, text),
-            )
+            else:
+                text = extract_last_ai_text(response["messages"])
+                if not text:
+                    text = "(agent did not return text)"
+                await client.chat_postMessage(
+                    channel=channel_id,
+                    user=user_id,
+                    blocks=build_agent_response_blocks(prompt, text),
+                )
     except Exception as e:
         logger.error(e)
         await client.chat_postEphemeral(
