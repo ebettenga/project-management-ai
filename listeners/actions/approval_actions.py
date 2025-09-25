@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from logging import Logger
 from typing import Any, Optional
 
@@ -201,7 +200,7 @@ async def _resume_agent(
 
     try:
         response = await ask_agent(
-            Command(resume={interrupt_id: resume_value}),
+            Command(resume=resume_value),
             thread_id=request["thread_id"],
             slack_context=slack_context,
         )

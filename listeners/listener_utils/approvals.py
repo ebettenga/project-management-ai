@@ -15,21 +15,29 @@ from listeners.listener_utils.listener_constants import (
 from state_store.approval_requests import save_request
 
 
+def _sanitize_text(value: str | None, fallback: str) -> str:
+    trimmed = (value or "").strip()
+    return trimmed if trimmed else fallback
+
+
 def build_agent_response_blocks(prompt: str, response_text: str) -> list[dict[str, Any]]:
+    safe_prompt = _sanitize_text(prompt, "(no prompt provided)")
+    safe_response = _sanitize_text(response_text, "(no response returned)")
+
     return [
         {
             "type": "rich_text",
             "elements": [
                 {
                     "type": "rich_text_quote",
-                    "elements": [{"type": "text", "text": prompt}],
+                    "elements": [{"type": "text", "text": safe_prompt}],
                 },
                 {
                     "type": "rich_text_section",
                     "elements": [
                         {
                             "type": "text",
-                            "text": response_text,
+                            "text": safe_response,
                         }
                     ],
                 },
@@ -146,6 +154,8 @@ async def handle_approval_interrupt(
                 "prompt": prompt,
                 "approval_message_ts": response["ts"],
                 "requester_user_id": user_id,
+                "tool_call_id": interrupt_payload.id,
+                "tool_name": "request_slack_approval",
             },
         )
         logger.info("Approval request logged for interrupt %s", interrupt_payload.id)
