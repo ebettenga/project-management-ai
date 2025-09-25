@@ -1,6 +1,10 @@
 from slack_bolt import App
-from .ask_command import ask_callback
+
+from .ask_llm import llm_callback
+from .memory_commands import remember_callback, ask_memory_callback
 
 
 def register(app: App):
-    app.command("/ask-bolty")(ask_callback)
+    app.command("/ask-llm")(llm_callback)
+    app.command("/remember")(remember_callback)
+    app.command("/ask")(ask_memory_callback)
