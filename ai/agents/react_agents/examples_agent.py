@@ -1,0 +1,51 @@
+"""LangGraph agent wired to MCP tools used by the Slack ask command."""
+
+import os
+from typing import Any
+
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+
+AGENT_PROMPT = (
+    "You are Bolty, the project management Slack assistant. "
+    "You can reach MCP tools via this environment. "
+    "Available tools:\n- time: Call this whenever the user asks about the current time or date.\n "
+    "save_memory: save facts provided to long term memory \n"
+    "search_memory: search memories that were stored for related info"
+    "Never guess the time—always call the tool first. "
+    "Store any information you recieve to memory"
+    "Call tools proactively whenever they can help and then explain the result succinctly."
+)
+
+client = MultiServerMCPClient(
+    {
+        "time": {
+            "command": "python",
+            "args": [
+                "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/time_server.py"
+            ],
+            "transport": "stdio",
+        },
+        "memory": {
+            "command": "python",
+            "args": [
+                "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/memory_agent.py"
+            ],
+            "transport": "stdio",
+            "env": os.environ.copy()
+        },
+    }
+)
+
+
+async def ask_agent(payload: dict[str, Any]):
+    if "messages" not in payload:
+        raise ValueError("ask_agent expects a payload with a 'messages' key.")
+
+    tools = await client.get_tools()
+    agent = create_react_agent(
+        "openai:gpt-4.1",
+        tools,
+        prompt=AGENT_PROMPT,
+    )
+    return await agent.ainvoke(payload)

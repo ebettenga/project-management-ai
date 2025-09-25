@@ -1,0 +1,22 @@
+[project]
+name = "slackbot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp>=3.12.15",
+    "anthropic==0.65.0",
+    "google-cloud-aiplatform==1.111.0",
+    "langchain-mcp-adapters>=0.1.10",
+    "langchain[openai]>=0.3.27",
+    "langgraph>=0.6.7",
+    "load-dotenv>=0.1.0",
+    "openai==1.102.0",
+    "pytest>=8.4.2",
+    "qdrant-client>=1.15.1",
+    "ruff>=0.13.1",
+    "sanic>=25.3.0",
+    "slack-bolt==1.24.0",
+    "slack-cli-hooks==0.1.0",
+]
