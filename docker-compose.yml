@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${MCP_SERVER_PORT:-8000}:8000"
+      - "${JIRA_MCP_SERVER_PORT:-8000}:8000"
     networks:
       - mcp-network
     command: ["--transport=streamable-http"]

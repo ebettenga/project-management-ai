@@ -49,7 +49,7 @@ client = MultiServerMCPClient(
         },
         "jira": {
             "transport": "streamable_http",
-            "url": "http://localhost:8000",
+            "url": "http://localhost:8000/mcp/",
         }
     }
 )
