@@ -1,11 +1,14 @@
 """LangGraph agent wired to MCP tools used by the Slack ask command."""
 
+import json
+import logging
 import os
 from typing import Any, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langchain_core.tools import BaseTool
+from langgraph.errors import GraphInterrupt
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
 from dotenv import load_dotenv
@@ -19,48 +22,44 @@ from listeners.agent_interrupts.common import SlackContext
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
 
+logger = logging.getLogger(__name__)
+
 AGENT_PROMPT = (
     "You are a project management assistant in a slack app. "
     "You can reach MCP tools via this environment. "
-    "Never guess the always call the tool first. "
-    "Store any information you recieve to memory"
-    "You primary help with located things in jira and performing actions on their behalf"
-    "keep research brief, once understaing what the user wants prompt the user to perform the action"
-    "if something doesn't make sense or you get stuck, ask the user using the ask_user tool"
-    "Call tools proactively whenever they can help and then explain the result succinctly."
+    "Never guess, always call the tool first. "
+    "Store any information you recieve to memory. "
+    "You primary help with located things in jira and performing actions on their behalf. "
+    "keep research brief. Create the summary, name, and/or description yourself if details are not provided. default tickets to normal prioity unless otherwise asked. "
+    "if something doesn't make sense or you get stuck, ask the user using the ask_user tool. "
+    "Call tools proactively whenever they can help and then explain the result succinctly. "
 )
 
-client = MultiServerMCPClient(
-    {
-        "time": {
-            "command": "python",
-            "args": [
-                "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/time_server.py"
-            ],
-            "transport": "stdio",
-        },
-        "memory": {
-            "command": "python",
-            "args": [
-                "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/memory_agent.py"
-            ],
-            "transport": "stdio",
-            "env": os.environ.copy()
-        },
-        "jira": {
-            "transport": "streamable_http",
-            "url": "http://localhost:8000/mcp/",
-        }
+
+
+_SERVER_CONFIG = {
+    "time": {
+        "command": "python",
+        "args": [
+            "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/time_server.py"
+        ],
+        "transport": "stdio",
+    },
+    "memory": {
+        "command": "python",
+        "args": [
+            "/Users/ethanbett/Desktop/project_management_bot/ai/agents/mcp/memory_agent.py"
+        ],
+        "transport": "stdio",
+        "env": os.environ.copy(),
+    },
+    "jira": {
+        "transport": "streamable_http",
+        "url": "http://localhost:8000/mcp"
     }
-)
+}
 
-
-def _filter_tools(tools: list[BaseTool]):
-    available_tools_list = [x.strip() for x in os.environ.get("ENABLED_TOOLS").split(",")]
-
-    return [ tool for tool in tools if getattr(tool, "name", "") in available_tools_list]
-
-
+client = MultiServerMCPClient(_SERVER_CONFIG)
 
 async def ask_agent(
     payload: dict[str, Any] | Command,
@@ -76,23 +75,15 @@ async def ask_agent(
     if thread_id:
         config["configurable"].update({"thread_id": thread_id})
 
-    tools = _filter_tools(list(await client.get_tools()))
-
-    wrapped_tools = []
-    for tool in tools:
-        if getattr(tool, "name", "") == "get_datetime":
-            wrapped_tools.append(
-                tool_approve(
-                    tool,
-                    summary="Allow the agent to fetch the current date and time?",
-                    context="The agent is requesting to run the time helper tool to retrieve the current UTC timestamp.",
-                    allow_edit=False,
-                    allow_reject=True,
-                )
-            )
-        else:
-            wrapped_tools.append(tool)
-    tools = wrapped_tools
+    try:
+        tools = list(await client.get_tools())
+    except Exception as error:
+        logger.warning(
+            "Failed to load tools from MCP servers; continuing with built-ins only: %s",
+            error,
+            exc_info=True,
+        )
+        tools = []
     tools.append(create_approval_tool(slack_context))
     tools.append(create_user_question_tool(slack_context))
 
@@ -105,4 +96,8 @@ async def ask_agent(
             checkpointer=checkpointer,
         )
 
-        return await agent.ainvoke(payload, config=config)
+        try:
+            return await agent.ainvoke(payload, config=config)
+        except GraphInterrupt as interrupt:
+            interrupts = list(getattr(interrupt, "interrupts", [])) or [interrupt]
+            return {"__interrupt__": interrupts}
