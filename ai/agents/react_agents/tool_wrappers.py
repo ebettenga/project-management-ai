@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
+import threading
 from dataclasses import asdict, is_dataclass
-from typing import Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool, tool as create_tool
+from langchain_core.tools import BaseTool, StructuredTool, tool as create_tool
 from langgraph.types import interrupt
 
 
@@ -48,38 +51,16 @@ def tool_approve(
     allow_edit: bool = False,
     allow_reject: bool = True,
 ) -> BaseTool:
-    """Wrap a tool so that executions require a human approval interrupt.
-
-    Parameters
-    ----------
-    tool:
-        The tool (callable or BaseTool) to wrap.
-    summary:
-        Optional human-facing summary explaining why the tool is being invoked.
-    context:
-        Optional additional context that will be shown during review.
-    allow_edit:
-        Whether reviewers may edit the tool arguments before approval.
-    allow_reject:
-        Whether reviewers may reject the tool call. If false, they can only approve.
-    """
+    """Wrap a tool so that executions require a human approval interrupt."""
 
     base_tool = _ensure_tool_instance(tool)
 
     if summary is None:
         summary = f"Approve running tool `{base_tool.name}`?"
 
-    @create_tool(
-        base_tool.name,
-        description=base_tool.description,
-        args_schema=base_tool.args_schema,
-        return_direct=getattr(base_tool, "return_direct", False),
-        response_format=getattr(base_tool, "response_format", "content"),
-    )
-    def call_tool_with_approval(config: RunnableConfig, **tool_input):
-        call_representation = f"{base_tool.name}({ _dump_tool_args(tool_input) })"
-
-        approval_payload = {
+    def _build_payload(tool_input: dict) -> dict[str, object]:
+        call_representation = f"{base_tool.name}({_dump_tool_args(tool_input)})"
+        return {
             "type": "approval_request",
             "summary": summary,
             "command": call_representation,
@@ -91,45 +72,171 @@ def tool_approve(
             },
         }
 
-        resume_value = interrupt(approval_payload)
-
+    def _handle_resume(resume_value: object, tool_input: dict) -> tuple[str, object]:
         if not isinstance(resume_value, dict):
             raise ValueError(
                 "tool_approve expected a dictionary response from the approval interrupt"
             )
 
-        decision = resume_value.get("status")
+        decision = (resume_value.get("status") or "approved").lower()
 
-        if decision == "approved":
-            return base_tool.invoke(tool_input, config=config)
+        if decision in {"approved", "edited"}:
+            edited_args = resume_value.get("edited_args")
+            if isinstance(edited_args, dict):
+                return "execute", edited_args
+            return "execute", tool_input
 
         if decision == "rejected":
-            reviewer_id = resume_value.get("reviewer_id")
-            notes = resume_value.get("notes")
-            reviewer_label = f"<@{reviewer_id}>" if reviewer_id else "the reviewer"
-            if notes:
-                return f"Tool `{base_tool.name}` call denied by {reviewer_label}: {notes}"
-            return f"Tool `{base_tool.name}` call denied by {reviewer_label}."
-
-        if decision == "edited":
-            # If edits are allowed, fall back to original logic by reusing the notes
-            # field to convey updated arguments in JSON form (if provided).
-            edited_args = resume_value.get("notes")
-            if isinstance(edited_args, dict):
-                tool_input = edited_args
-                return base_tool.invoke(tool_input, config=config)
-            raise ValueError(
-                "tool_approve received an edit response without updated arguments"
-            )
+            return "return", _format_rejection_message(base_tool.name, resume_value)
 
         raise ValueError(
             f"Unsupported approval decision `{decision}` for tool `{base_tool.name}`"
         )
 
-    # Ensure the wrapped tool retains the original metadata for discovery.
-    # Preserve metadata that the decorator does not copy automatically.
-    call_tool_with_approval.metadata = getattr(base_tool, "metadata", None)
-    call_tool_with_approval.tags = getattr(base_tool, "tags", None)
-    call_tool_with_approval.callbacks = getattr(base_tool, "callbacks", None)
+    def call_tool_with_approval(
+        config: RunnableConfig,
+        **tool_input,
+    ):
+        resume_value = interrupt(_build_payload(tool_input))
+        action, payload = _handle_resume(resume_value, tool_input)
 
-    return call_tool_with_approval
+        if action == "return":
+            return _normalize_output(base_tool, payload)
+
+        return _execute_tool_sync(base_tool, payload, config)
+
+    async def call_tool_with_approval_async(
+        config: RunnableConfig,
+        **tool_input,
+    ):
+        resume_value = interrupt(_build_payload(tool_input))
+        action, payload = _handle_resume(resume_value, tool_input)
+
+        if action == "return":
+            return _normalize_output(base_tool, payload)
+
+        return await _execute_tool_async(base_tool, payload, config)
+
+    wrapped_tool = StructuredTool.from_function(
+        func=call_tool_with_approval,
+        coroutine=call_tool_with_approval_async,
+        name=base_tool.name,
+        description=base_tool.description,
+        args_schema=base_tool.args_schema,
+        return_direct=getattr(base_tool, "return_direct", False),
+        response_format=getattr(base_tool, "response_format", "content"),
+    )
+
+    wrapped_tool.metadata = getattr(base_tool, "metadata", None)
+    wrapped_tool.tags = getattr(base_tool, "tags", None)
+    wrapped_tool.callbacks = getattr(base_tool, "callbacks", None)
+
+    return wrapped_tool
+
+
+def _execute_tool_sync(
+    base_tool: BaseTool,
+    tool_input: dict,
+    config: Optional[RunnableConfig],
+) -> object:
+    """Execute a wrapped tool within a synchronous context."""
+
+    try:
+        result = base_tool.invoke(tool_input, config=config)
+    except NotImplementedError:
+        coroutine_fn = getattr(base_tool, "coroutine", None)
+        if coroutine_fn is not None:
+            kwargs = _prepare_callable_kwargs(coroutine_fn, tool_input, config)
+            result = _run_coroutine_sync(lambda: coroutine_fn(**kwargs))
+        else:
+            func = getattr(base_tool, "func", None)
+            if func is not None:
+                kwargs = _prepare_callable_kwargs(func, tool_input, config)
+                result = func(**kwargs)
+            else:
+                raise
+    return _normalize_output(base_tool, result)
+
+
+def _prepare_callable_kwargs(
+    callable_obj: Callable,
+    tool_input: dict,
+    config: Optional[RunnableConfig],
+) -> dict:
+    kwargs = dict(tool_input)
+    signature = inspect.signature(callable_obj)
+    if "config" in signature.parameters and config is not None:
+        kwargs.setdefault("config", config)
+    return kwargs
+
+
+def _run_coroutine_sync(factory: Callable[[], Awaitable[Any]]):
+    """Run an async callable from a synchronous context."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(factory())
+
+    result: dict[str, object] = {}
+    error: dict[str, BaseException] = {}
+
+    def _runner() -> None:
+        try:
+            result["value"] = asyncio.run(factory())
+        except Exception as exc:  # pragma: no cover - defensive guard
+            error["error"] = exc
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+
+    if error:
+        raise error["error"]
+
+    return result.get("value")
+
+
+def _normalize_output(base_tool: BaseTool, value: object) -> object:
+    """Ensure tool output matches the wrapped tool's response format."""
+
+    expected_format = getattr(base_tool, "response_format", "content")
+    if expected_format == "content_and_artifact":
+        if isinstance(value, tuple) and len(value) == 2:
+            return value
+        return (value, None)
+    return value
+
+
+def _format_rejection_message(tool_name: str, resume_value: dict) -> str:
+    reviewer_id = resume_value.get("reviewer_id")
+    notes = resume_value.get("notes")
+    reviewer_label = f"<@{reviewer_id}>" if reviewer_id else "the reviewer"
+    if notes:
+        return f"Tool `{tool_name}` call denied by {reviewer_label}: {notes}"
+    return f"Tool `{tool_name}` call denied by {reviewer_label}."
+
+
+async def _execute_tool_async(
+    base_tool: BaseTool,
+    tool_input: dict,
+    config: Optional[RunnableConfig],
+) -> object:
+    """Execute a wrapped tool within an asynchronous context."""
+
+    try:
+        result = await base_tool.ainvoke(tool_input, config=config)
+    except NotImplementedError:
+        coroutine_fn = getattr(base_tool, "coroutine", None)
+        if coroutine_fn is not None:
+            kwargs = _prepare_callable_kwargs(coroutine_fn, tool_input, config)
+            result = await coroutine_fn(**kwargs)
+        else:
+            func = getattr(base_tool, "func", None)
+            if func is not None:
+                kwargs = _prepare_callable_kwargs(func, tool_input, config)
+                result = func(**kwargs)
+            else:
+                raise
+
+    return _normalize_output(base_tool, result)
