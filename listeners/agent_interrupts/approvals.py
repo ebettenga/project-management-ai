@@ -38,6 +38,11 @@ async def handle_approval_interrupt(
     summary = sanitize_text(approval_data.get("summary"), "Approval requested")
     command_text = approve_payload_text(approval_data.get("command"))
     additional_context = sanitize_optional(approval_data.get("additional_context"))
+    approval_options = approval_data.get("approval_options") or {}
+
+    allow_approve = approval_options.get("allow_approve", True)
+    allow_edit = approval_options.get("allow_edit", True)
+    allow_reject = approval_options.get("allow_reject", True)
 
     block_id = f"approval_actions_{uuid4().hex[:8]}"
 
@@ -69,32 +74,53 @@ async def handle_approval_interrupt(
             }
         )
 
+    elements: list[dict[str, Any]] = []
+    if allow_approve:
+        elements.append(
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Approve"},
+                "style": "primary",
+                "action_id": APPROVAL_ACTION_APPROVE,
+                "value": interrupt.id,
+            }
+        )
+    if allow_edit:
+        elements.append(
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Edit"},
+                "action_id": APPROVAL_ACTION_EDIT,
+                "value": interrupt.id,
+            }
+        )
+    if allow_reject:
+        elements.append(
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Reject"},
+                "style": "danger",
+                "action_id": APPROVAL_ACTION_REJECT,
+                "value": interrupt.id,
+            }
+        )
+
+    if not elements:
+        elements.append(
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Approve"},
+                "style": "primary",
+                "action_id": APPROVAL_ACTION_APPROVE,
+                "value": interrupt.id,
+            }
+        )
+
     blocks.append(
         {
             "type": "actions",
             "block_id": block_id,
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Approve"},
-                    "style": "primary",
-                    "action_id": APPROVAL_ACTION_APPROVE,
-                    "value": interrupt.id,
-                },
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Edit"},
-                    "action_id": APPROVAL_ACTION_EDIT,
-                    "value": interrupt.id,
-                },
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Reject"},
-                    "style": "danger",
-                    "action_id": APPROVAL_ACTION_REJECT,
-                    "value": interrupt.id,
-                },
-            ],
+            "elements": elements,
         }
     )
 
@@ -123,6 +149,7 @@ async def handle_approval_interrupt(
             "requester_user_id": user_id,
             "tool_call_id": interrupt.id,
             "tool_name": "request_slack_approval",
+            "approval_options": approval_options,
         },
     )
     logger.info("Approval request logged for interrupt %s", interrupt.id)
