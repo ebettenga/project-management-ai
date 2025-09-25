@@ -4,11 +4,11 @@ from slack_bolt import Ack, BoltContext, Say
 from slack_sdk import WebClient
 
 from ai.agents.react_agents.all_tools import SlackContext, ask_agent
-from listeners.listener_utils.approvals import (
+from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
+    handle_agent_interrupt,
 )
-from listeners.listener_utils.interrupts import handle_agent_interrupt
 
 """
 Callback for handling the 'ask-llm' command. It acknowledges the command, retrieves the user's ID and prompt,
@@ -50,8 +50,6 @@ async def llm_callback(
                 thread_ts=thread_ts,
                 thread_id=thread_id,
             )
-
-
             response = await ask_agent(
                 agent_payload, thread_id=thread_id, slack_context=slack_context
             )

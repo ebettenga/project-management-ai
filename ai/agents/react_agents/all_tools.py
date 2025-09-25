@@ -3,14 +3,17 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from langchain_core.tools import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
-from langgraph.types import Command, interrupt
+from langgraph.types import Command
 from dotenv import load_dotenv
+from listeners.agent_interrupts import (
+    create_approval_tool,
+    create_user_question_tool,
+)
 
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
@@ -68,88 +71,6 @@ class SlackContext:
         )
 
 
-def _build_approval_tool(slack_context: Optional[SlackContext]) -> StructuredTool:
-    """Create a structured tool that interrupts execution pending Slack approval."""
-
-    context_payload = slack_context.as_json() if slack_context else None
-
-    def request_slack_approval(
-        command: str,
-        summary: str,
-        additional_context: str | None = None,
-    ) -> dict[str, Any]:
-        """Request a human reviewer in Slack to approve a command before it runs."""
-
-        approval_payload: Dict[str, Any] = {
-            "type": "approval_request",
-            "command": command,
-            "summary": summary,
-            "additional_context": additional_context,
-        }
-
-        if context_payload is not None:
-            approval_payload["slack_context"] = context_payload
-
-        resume_value = interrupt(approval_payload)
-
-        # The resume value can be any JSON-serialisable object.
-        return resume_value  # type: ignore[return-value]
-
-    return StructuredTool.from_function(
-        func=request_slack_approval,
-        name="request_slack_approval",
-        description=(
-            "Pause execution and ask a human to approve or edit the provided command."
-            "Always supply a concise summary of why approval is needed and what you are attempting to perform"
-        ),
-    )
-
-
-def _build_user_question_tool(slack_context: Optional[SlackContext]) -> StructuredTool:
-    """Create a structured tool that asks a Slack user for input via an interrupt."""
-
-    context_payload = slack_context.as_json() if slack_context else None
-
-    def ask_user(
-        question: str,
-        context: str | None = None,
-    ) -> str:
-        """Pause execution, ask the user a question, and resume with their answer."""
-
-        question_payload: Dict[str, Any] = {
-            "type": "user_question",
-            "question": question,
-            "context": context,
-        }
-
-        if context_payload is not None:
-            question_payload["slack_context"] = context_payload
-
-        resume_value = interrupt(question_payload)
-
-        if isinstance(resume_value, dict):
-            answer = resume_value.get("answer")
-            if isinstance(answer, str):
-                return answer
-
-        if isinstance(resume_value, str):
-            return resume_value
-
-        raise ValueError(
-            "ask_user tool expected an answer string in the resume payload, "
-            "but received an unsupported response."
-        )
-
-    return StructuredTool.from_function(
-        func=ask_user,
-        name="ask_user",
-        description=(
-            "Pause execution and request information from the user. "
-            "Provide a concise question and optional context that will be shown in Slack."
-        ),
-    )
-
-
 async def ask_agent(
     payload: dict[str, Any] | Command,
     *,
@@ -165,8 +86,8 @@ async def ask_agent(
         config["configurable"].update({"thread_id": thread_id})
 
     tools = list(await client.get_tools())
-    tools.append(_build_approval_tool(slack_context))
-    tools.append(_build_user_question_tool(slack_context))
+    tools.append(create_approval_tool(slack_context))
+    tools.append(create_user_question_tool(slack_context))
 
     async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
         await checkpointer.setup()

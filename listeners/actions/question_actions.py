@@ -10,17 +10,20 @@ from slack_sdk import WebClient
 from ai.agents.react_agents.all_tools import SlackContext, ask_agent
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
-from listeners.listener_utils.approvals import (
+from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
+    handle_agent_interrupt,
 )
-from listeners.listener_utils.interrupts import handle_agent_interrupt
 from listeners.listener_utils.listener_constants import (
     QUESTION_MODAL_CALLBACK,
     QUESTION_MODAL_INPUT_ACTION,
     QUESTION_MODAL_INPUT_BLOCK,
 )
-from state_store.question_requests import delete_request, load_request
+from listeners.agent_interrupts.storage import (
+    delete_question_request,
+    load_question_request,
+)
 
 
 async def open_question_modal(logger: Logger, ack: Ack, body: dict, client: WebClient):
@@ -28,7 +31,7 @@ async def open_question_modal(logger: Logger, ack: Ack, body: dict, client: WebC
 
     try:
         interrupt_id = body["actions"][0]["value"]
-        request = load_request(interrupt_id)
+        request = load_question_request(interrupt_id)
         if not request:
             await _notify_missing_request(client, body)
             return
@@ -117,7 +120,7 @@ async def submit_question_modal(logger: Logger, ack: Ack, body: dict, client: We
 
     await ack()
 
-    request = load_request(interrupt_id)
+    request = load_question_request(interrupt_id)
     if not request:
         logger.error("Question request %s could not be found", interrupt_id)
         return
@@ -164,7 +167,7 @@ async def submit_question_modal(logger: Logger, ack: Ack, body: dict, client: We
             prompt=request.get("prompt", request.get("question", "")),
             logger=logger,
         )
-        delete_request(interrupt_id)
+        delete_question_request(interrupt_id)
         return
 
     text = extract_last_ai_text(response["messages"])
@@ -180,7 +183,7 @@ async def submit_question_modal(logger: Logger, ack: Ack, body: dict, client: We
         ),
     )
 
-    delete_request(interrupt_id)
+    delete_question_request(interrupt_id)
 
 
 async def _update_question_message(

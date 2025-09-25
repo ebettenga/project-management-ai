@@ -10,18 +10,21 @@ from slack_sdk import WebClient
 from ai.agents.react_agents.all_tools import SlackContext, ask_agent
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
-from listeners.listener_utils.approvals import (
+from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
+    handle_agent_interrupt,
 )
-from listeners.listener_utils.interrupts import handle_agent_interrupt
 from listeners.listener_utils.listener_constants import (
     APPROVAL_ACTION_APPROVE,
     APPROVAL_ACTION_EDIT,
     APPROVAL_ACTION_REJECT,
     APPROVAL_EDIT_MODAL_CALLBACK,
 )
-from state_store.approval_requests import delete_request, load_request
+from listeners.agent_interrupts.storage import (
+    delete_approval_request,
+    load_approval_request,
+)
 
 
 async def approve_request(logger: Logger, ack: Ack, body: dict, client: WebClient):
@@ -49,7 +52,7 @@ async def start_edit_request(logger: Logger, ack: Ack, body: dict, client: WebCl
 
     try:
         interrupt_id = body["actions"][0]["value"]
-        request = load_request(interrupt_id)
+        request = load_approval_request(interrupt_id)
         if not request:
             await _notify_missing_request(client, body)
             return
@@ -100,7 +103,7 @@ async def submit_edit_request(logger: Logger, ack: Ack, body: dict, client: WebC
         logger.error("Interrupt id missing from modal metadata")
         return
 
-    request = load_request(interrupt_id)
+    request = load_approval_request(interrupt_id)
     if not request:
         await _notify_missing_request(client, body)
         return
@@ -137,7 +140,7 @@ async def _process_decision(
             logger.error("No interrupt_id found in action payload")
             return
 
-        request = load_request(interrupt_id)
+        request = load_approval_request(interrupt_id)
         if not request:
             await _notify_missing_request(client, body)
             return
@@ -161,7 +164,7 @@ async def _process_decision(
             logger=logger,
         )
 
-        delete_request(interrupt_id)
+        delete_approval_request(interrupt_id)
     except Exception as error:  # pragma: no cover - defensive guard
         logger.error("Failed to process approval decision: %s", error)
 

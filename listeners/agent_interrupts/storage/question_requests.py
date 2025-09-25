@@ -1,8 +1,11 @@
-"""Persistence helpers for pending user question requests."""
+"""Persistence helpers for pending user-question interrupts."""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
+
 
 QUESTION_STORE = Path("data/question_requests")
 

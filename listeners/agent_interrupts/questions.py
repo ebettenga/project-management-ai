@@ -1,4 +1,4 @@
-"""Helpers for handling user-question interrupts from the agent."""
+"""Slack-facing helpers for user-question interrupts."""
 
 from __future__ import annotations
 
@@ -9,13 +9,9 @@ from uuid import uuid4
 from langgraph.types import Interrupt
 from slack_sdk import WebClient
 
+from listeners.agent_interrupts.common import sanitize_text
+from listeners.agent_interrupts.storage import save_question_request
 from listeners.listener_utils.listener_constants import QUESTION_ACTION_OPEN_MODAL
-from state_store.question_requests import save_request
-
-
-def _sanitize_text(value: str | None, fallback: str) -> str:
-    trimmed = (value or "").strip()
-    return trimmed if trimmed else fallback
 
 
 async def handle_question_interrupt(
@@ -37,15 +33,12 @@ async def handle_question_interrupt(
         )
         return
 
-    question = _sanitize_text(question_data.get("question"), "(no question provided)")
-    context = _sanitize_text(question_data.get("context"), "")
-    button_text = _sanitize_text(
-        question_data.get("button_text"),
-        "Answer question",
-    )
-    modal_title = _sanitize_text(question_data.get("modal_title"), "Provide an answer")
-    submit_label = _sanitize_text(question_data.get("submit_label"), "Submit")
-    placeholder = _sanitize_text(
+    question = sanitize_text(question_data.get("question"), "(no question provided)")
+    context = sanitize_text(question_data.get("context"), "")
+    button_text = sanitize_text(question_data.get("button_text"), "Answer question")
+    modal_title = sanitize_text(question_data.get("modal_title"), "Provide an answer")
+    submit_label = sanitize_text(question_data.get("submit_label"), "Submit")
+    placeholder = sanitize_text(
         question_data.get("placeholder"),
         "Provide any details that will help the bot.",
     )
@@ -99,7 +92,7 @@ async def handle_question_interrupt(
 
     conversation_ts = thread_ts or response["ts"]
 
-    save_request(
+    save_question_request(
         interrupt.id,
         {
             "thread_id": thread_id,

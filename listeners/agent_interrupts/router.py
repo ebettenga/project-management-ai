@@ -1,4 +1,4 @@
-"""Utility for routing agent interrupts to the appropriate Slack handlers."""
+"""Dispatcher for agent interrupt payloads."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from logging import Logger
 from langgraph.types import Interrupt
 from slack_sdk import WebClient
 
-from listeners.listener_utils.approvals import handle_approval_interrupt
-from listeners.listener_utils.questions import handle_question_interrupt
+from listeners.agent_interrupts.approvals import handle_approval_interrupt
+from listeners.agent_interrupts.questions import handle_question_interrupt
 
 
 async def handle_agent_interrupt(
