@@ -20,6 +20,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
     SparseVector,
     SparseVectorParams,
+    PointIdsList,
     PointStruct,
     VectorParams,
     Distance,
@@ -580,6 +581,20 @@ class MemoryService:
         ]
 
 
+    def delete(self, memory_ids: Iterable[str]) -> Dict[str, Any]:
+        ids = [str(memory_id).strip() for memory_id in memory_ids if str(memory_id).strip()]
+        if not ids:
+            return {"deleted": 0}
+
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=PointIdsList(points=ids),
+            wait=True,
+        )
+
+        return {"deleted": len(ids)}
+
+
 _service: Optional[MemoryService] = None
 
 
@@ -614,6 +629,11 @@ def search_memory(
     """
     service = get_service()
     return service.search(query, limit=limit, group_size=group_size)
+
+
+def delete_memories(memory_ids: List[str]) -> Dict[str, Any]:
+    service = get_service()
+    return service.delete(memory_ids)
 
 
 if __name__ == "__main__":
