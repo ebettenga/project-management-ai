@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langchain_core.tools import BaseTool
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
 from dotenv import load_dotenv
@@ -47,8 +48,19 @@ client = MultiServerMCPClient(
             "transport": "stdio",
             "env": os.environ.copy()
         },
+        "jira": {
+            "transport": "streamable-http",
+            "url": "http://localhost:8080",
+        }
     }
 )
+
+
+def _filter_tools(tools: list[BaseTool]):
+    available_tools_list = [x.strip() for x in os.environ.get("ENABLED_TOOLS").split(",")]
+
+    return [ tool for tool in tools if getattr(tool, "name", "") in available_tools_list]
+
 
 
 async def ask_agent(
@@ -65,7 +77,7 @@ async def ask_agent(
     if thread_id:
         config["configurable"].update({"thread_id": thread_id})
 
-    tools = list(await client.get_tools())
+    tools = _filter_tools(list(await client.get_tools()))
 
     wrapped_tools = []
     for tool in tools:
