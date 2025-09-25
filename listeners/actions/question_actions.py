@@ -150,25 +150,26 @@ async def submit_question_modal(logger: Logger, ack: Ack, body: dict, client: We
     if responding_user_id:
         resume_value["responding_user_id"] = responding_user_id
 
-    try:
-        response = await ask_agent(
-            Command(resume=resume_value),
-            thread_id=request["thread_id"],
-            slack_context=slack_context,
-        )
-    except GraphInterrupt as interrupt:
-        await handle_agent_interrupt(
-            client=client,
-            interrupt=interrupt,
-            channel_id=request["channel_id"],
-            user_id=request["requester_user_id"],
-            thread_ts=request["thread_ts"],
-            thread_id=request["thread_id"],
-            prompt=request.get("prompt", request.get("question", "")),
-            logger=logger,
-        )
-        delete_question_request(interrupt_id)
-        return
+
+    response = await ask_agent(
+        Command(resume=resume_value),
+        thread_id=request["thread_id"],
+        slack_context=slack_context,
+    )
+
+    if "__interrupt__" in response:
+        for interrupt in response["__interrupt__"]:
+            await handle_agent_interrupt(
+                client=client,
+                interrupt=interrupt,
+                channel_id=request["channel_id"],
+                user_id=request["requester_user_id"],
+                thread_ts=request["thread_ts"],
+                thread_id=request["thread_id"],
+                prompt=request.get("prompt", request.get("summary", "")),
+                logger=logger,
+            )
+            return
 
     text = extract_last_ai_text(response["messages"])
     if not text:

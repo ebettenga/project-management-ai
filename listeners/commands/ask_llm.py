@@ -55,8 +55,6 @@ async def llm_callback(
                 agent_payload, thread_id=thread_id, slack_context=slack_context
             )
 
-            print("response", response)
-
             if "__interrupt__" in response:
                 for interrupt in response["__interrupt__"]:
                     await handle_agent_interrupt(

@@ -10,6 +10,11 @@ from langgraph.checkpoint.postgres import PostgresSaver
 
 load_dotenv()
 
+
+if os.getenv("DEBUG"):
+    import debugpy
+    debugpy.listen(("0.0.0.0", 5678))
+
 DB_URI = os.getenv("POSTGRES_URL")
 with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     checkpointer.setup()

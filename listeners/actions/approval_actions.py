@@ -16,9 +16,6 @@ from listeners.agent_interrupts import (
     handle_agent_interrupt,
 )
 from listeners.listener_utils.listener_constants import (
-    APPROVAL_ACTION_APPROVE,
-    APPROVAL_ACTION_EDIT,
-    APPROVAL_ACTION_REJECT,
     APPROVAL_EDIT_MODAL_CALLBACK,
 )
 from listeners.agent_interrupts.storage import (
@@ -204,24 +201,27 @@ async def _resume_agent(
             text=f"Additional context from {reviewer_label}:\n{notes}",
         )
 
-    try:
-        response = await ask_agent(
-            Command(resume=resume_value),
-            thread_id=request["thread_id"],
-            slack_context=slack_context,
-        )
-    except GraphInterrupt as interrupt:
-        await handle_agent_interrupt(
-            client=client,
-            interrupt=interrupt,
-            channel_id=request["channel_id"],
-            user_id=request["requester_user_id"],
-            thread_ts=request["thread_ts"],
-            thread_id=request["thread_id"],
-            prompt=request.get("prompt", request.get("summary", "")),
-            logger=logger,
-        )
-        return
+
+    response = await ask_agent(
+        Command(resume=resume_value),
+        thread_id=request["thread_id"],
+        slack_context=slack_context,
+    )
+
+    if "__interrupt__" in response:
+        for interrupt in response["__interrupt__"]:
+            await handle_agent_interrupt(
+                client=client,
+                interrupt=interrupt,
+                channel_id=request["channel_id"],
+                user_id=request["requester_user_id"],
+                thread_ts=request["thread_ts"],
+                thread_id=request["thread_id"],
+                prompt=request.get("prompt", request.get("summary", "")),
+                logger=logger,
+            )
+            return
+
 
     text = extract_last_ai_text(response["messages"])
     if not text:
