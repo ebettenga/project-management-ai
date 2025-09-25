@@ -1,7 +1,7 @@
 from slack_bolt import Ack, Say, BoltContext
 from logging import Logger
 from slack_sdk import WebClient
-from ai.agents.react_agents.examples_agent import ask_agent
+from ai.agents.react_agents.all_tools import ask_agent
 
 """
 Callback for handling the 'ask-llm' command. It acknowledges the command, retrieves the user's ID and prompt,

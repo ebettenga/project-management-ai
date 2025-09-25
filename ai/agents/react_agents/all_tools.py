@@ -12,7 +12,7 @@ load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
 
 AGENT_PROMPT = (
-    "You are Bolty, the project management Slack assistant. "
+    "You are a project management assistant in a slack app. "
     "You can reach MCP tools via this environment. "
     "Available tools:\n- time: Call this whenever the user asks about the current time or date.\n "
     "save_memory: save facts provided to long term memory \n"
