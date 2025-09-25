@@ -99,8 +99,8 @@ def _build_approval_tool(slack_context: Optional[SlackContext]) -> StructuredToo
         func=request_slack_approval,
         name="request_slack_approval",
         description=(
-            "Pause execution and ask a human in Slack to approve or edit the provided command. "
-            "Always supply a concise summary of why approval is needed."
+            "Pause execution and ask a human to approve or edit the provided command."
+            "Always supply a concise summary of why approval is needed and what you are attempting to perform"
         ),
     )
 

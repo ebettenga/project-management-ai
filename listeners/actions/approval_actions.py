@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from logging import Logger
 from typing import Any, Optional
+import json
 
 from slack_bolt import Ack
 from slack_sdk import WebClient
@@ -44,7 +45,8 @@ async def reject_request(logger: Logger, ack: Ack, body: dict, client: WebClient
 
 
 async def start_edit_request(logger: Logger, ack: Ack, body: dict, client: WebClient):
-    await ack()
+    await ack()  # always ack quickly
+
     try:
         interrupt_id = body["actions"][0]["value"]
         request = load_request(interrupt_id)
@@ -80,11 +82,11 @@ async def start_edit_request(logger: Logger, ack: Ack, body: dict, client: WebCl
             ],
         }
 
+        # Correct way for message buttons
         await client.views_open(trigger_id=body["trigger_id"], view=modal_view)
-    except Exception as error:  # pragma: no cover - defensive guard
+
+    except Exception as error:
         logger.error("Failed to open edit modal: %s", error)
-
-
 async def submit_edit_request(logger: Logger, ack: Ack, body: dict, client: WebClient):
     await ack()
     try:
