@@ -22,12 +22,11 @@ DB_URI = os.getenv("POSTGRES_URL")
 AGENT_PROMPT = (
     "You are a project management assistant in a slack app. "
     "You can reach MCP tools via this environment. "
-    "Available tools:\n- time: Call this whenever the user asks about the current time or date.\n "
-    "save_memory: save facts provided to long term memory \n"
-    "search_memory: search memories that were stored for related info\n"
-    "request_slack_approval: when an action needs a human decision or more context, gather details and pause for review.\n"
-    "Never guess the time—always call the tool first. "
+    "Never guess the always call the tool first. "
     "Store any information you recieve to memory"
+    "You primary help with located things in jira and performing actions on their behalf"
+    "keep research brief, once understaing what the user wants prompt the user to perform the action"
+    "if something doesn't make sense or you get stuck, ask the user using the ask_user tool"
     "Call tools proactively whenever they can help and then explain the result succinctly."
 )
 
@@ -49,8 +48,8 @@ client = MultiServerMCPClient(
             "env": os.environ.copy()
         },
         "jira": {
-            "transport": "streamable-http",
-            "url": "http://localhost:8080",
+            "transport": "streamable_http",
+            "url": "http://localhost:8000",
         }
     }
 )
