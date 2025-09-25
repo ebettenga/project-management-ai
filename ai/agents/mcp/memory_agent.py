@@ -472,7 +472,7 @@ class MemoryService:
         if not query_counts:
             return []
 
-        search_groups = self.client.search_groups(
+        search_groups_result = self.client.search_groups(
             collection_name=self.collection_name,
             query_vector=NamedVector(name=self.dense_name, vector=dense_query),
             limit=max(1, limit),
@@ -481,11 +481,30 @@ class MemoryService:
             with_payload=True,
         )
 
+        groups = getattr(search_groups_result, "groups", None)
+        if groups is None:
+            if isinstance(search_groups_result, tuple):
+                groups = search_groups_result[0]
+            else:
+                groups = search_groups_result
+
+        if not groups:
+            return []
+
         record_by_id = {record.id: record for record in records}
         candidates: List[Dict[str, Any]] = []
 
-        for group in search_groups:
-            for point in group.hits:
+        for group in groups:
+            hits = getattr(group, "hits", None)
+            if hits is None:
+                if isinstance(group, tuple) and len(group) >= 2:
+                    hits = group[1]
+                elif isinstance(group, dict):
+                    hits = group.get("hits")
+            if not hits:
+                continue
+
+            for point in hits:
                 record = record_by_id.get(str(point.id))
                 if not record:
                     payload = point.payload or {}
