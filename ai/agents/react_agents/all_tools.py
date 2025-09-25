@@ -112,7 +112,14 @@ _SERVER_CONFIG = {
     "jira": {
         "transport": "streamable_http",
         "url": "http://localhost:8000/mcp"
-    }
+    },
+    # "asana": {
+    #   "command": "npx",
+    #   "args": ["-y", "@roychri/mcp-server-asana"],
+    #   "env": {
+    #     "ASANA_ACCESS_TOKEN": os.environ.copy()
+    #   }
+    # }
 }
 
 client = MultiServerMCPClient(_SERVER_CONFIG)
