@@ -5,12 +5,11 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from dotenv import load_dotenv
 
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
-checkpointer = PostgresSaver.from_conn_string(DB_URI)
 
 AGENT_PROMPT = (
     "You are Bolty, the project management Slack assistant. "
@@ -54,15 +53,17 @@ async def ask_agent(payload: dict[str, Any], thread_id=None):
     }
 
     tools = await client.get_tools()
-    agent = create_react_agent(
-        "openai:gpt-4.1",
-        tools,
-        prompt=AGENT_PROMPT,
-        checkpointer=checkpointer
-    )
+    async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
+        await checkpointer.setup()
+        agent = create_react_agent(
+            "openai:gpt-4.1",
+            tools,
+            prompt=AGENT_PROMPT,
+            checkpointer=checkpointer
+        )
 
-    if thread_id:
-        config["configurable"].update({"thread_id": thread_id})
+        if thread_id:
+            config["configurable"].update({"thread_id": thread_id})
 
-    return await agent.ainvoke(payload, config=config)
+        return await agent.ainvoke(payload, config=config)
 
