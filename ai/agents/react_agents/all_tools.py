@@ -1,8 +1,6 @@
 """LangGraph agent wired to MCP tools used by the Slack ask command."""
 
-import json
 import os
-from dataclasses import dataclass
 from typing import Any, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -14,6 +12,7 @@ from listeners.agent_interrupts import (
     create_approval_tool,
     create_user_question_tool,
 )
+from listeners.agent_interrupts.common import SlackContext
 
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
@@ -49,26 +48,6 @@ client = MultiServerMCPClient(
         },
     }
 )
-
-
-@dataclass(frozen=True)
-class SlackContext:
-    """Slack context passed to the agent for tool calls."""
-
-    channel_id: str
-    user_id: str
-    thread_ts: Optional[str]
-    thread_id: Optional[str]
-
-    def as_json(self) -> str:
-        return json.dumps(
-            {
-                "channel_id": self.channel_id,
-                "user_id": self.user_id,
-                "thread_ts": self.thread_ts,
-                "thread_id": self.thread_id,
-            }
-        )
 
 
 async def ask_agent(

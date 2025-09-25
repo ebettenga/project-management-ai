@@ -2,10 +2,32 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from typing import Any, Iterable
-
+from typing_extensions import Optional
 from langchain_core.messages import AIMessage
 from langchain_core.messages.base import BaseMessage
+
+
+@dataclass(frozen=True)
+class SlackContext:
+    """Slack context passed to the agent for tool calls."""
+
+    channel_id: str
+    user_id: str
+    thread_ts: Optional[str]
+    thread_id: Optional[str]
+
+    def as_json(self) -> str:
+        return json.dumps(
+            {
+                "channel_id": self.channel_id,
+                "user_id": self.user_id,
+                "thread_ts": self.thread_ts,
+                "thread_id": self.thread_id,
+            }
+        )
 
 
 def sanitize_text(value: str | None, fallback: str) -> str:

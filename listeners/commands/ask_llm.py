@@ -3,7 +3,8 @@ from logging import Logger
 from slack_bolt import Ack, BoltContext, Say
 from slack_sdk import WebClient
 
-from ai.agents.react_agents.all_tools import SlackContext, ask_agent
+from ai.agents.react_agents.all_tools import ask_agent
+from listeners.agent_interrupts.common import SlackContext
 from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,

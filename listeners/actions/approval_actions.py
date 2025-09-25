@@ -7,7 +7,7 @@ import json
 from slack_bolt import Ack
 from slack_sdk import WebClient
 
-from ai.agents.react_agents.all_tools import SlackContext, ask_agent
+from ai.agents.react_agents.all_tools import ask_agent
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 from listeners.agent_interrupts import (
@@ -15,6 +15,7 @@ from listeners.agent_interrupts import (
     extract_last_ai_text,
     handle_agent_interrupt,
 )
+from listeners.agent_interrupts.common import SlackContext
 from listeners.listener_utils.listener_constants import (
     APPROVAL_ACTION_APPROVE,
     APPROVAL_ACTION_EDIT,

@@ -8,7 +8,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.types import interrupt
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
-    from ai.agents.react_agents.all_tools import SlackContext
+    from listeners.agent_interrupts.common import SlackContext
 
 
 def create_approval_tool(
