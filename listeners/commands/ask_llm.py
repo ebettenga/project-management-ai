@@ -7,6 +7,7 @@ from ai.agents.react_agents.all_tools import SlackContext, ask_agent
 from langgraph.errors import GraphInterrupt
 from listeners.listener_utils.approvals import (
     build_agent_response_blocks,
+    extract_last_ai_text,
     handle_approval_interrupt,
 )
 
@@ -51,14 +52,17 @@ async def llm_callback(
                 thread_id=thread_id,
             )
 
-            try:
-                response = await ask_agent(
-                    agent_payload, thread_id=thread_id, slack_context=slack_context
-                )
-            except GraphInterrupt as interrupt:
+
+            response = await ask_agent(
+                agent_payload, thread_id=thread_id, slack_context=slack_context
+            )
+
+            print("response", response)
+            
+            if '__interrupt__' in response:
                 await handle_approval_interrupt(
                     client=client,
-                    interrupt=interrupt,
+                    interrupt=response['__interrupt__'][0],
                     channel_id=channel_id,
                     user_id=user_id,
                     thread_ts=thread_ts,
@@ -68,7 +72,9 @@ async def llm_callback(
                 )
                 return
 
-            text = response["messages"][-1].content
+            text = extract_last_ai_text(response["messages"])
+            if not text:
+                text = "(agent did not return text)"
             await client.chat_postMessage(
                 channel=channel_id,
                 user=user_id,

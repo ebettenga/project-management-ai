@@ -11,6 +11,7 @@ from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 from listeners.listener_utils.approvals import (
     build_agent_response_blocks,
+    extract_last_ai_text,
     handle_approval_interrupt,
 )
 from listeners.listener_utils.listener_constants import (
@@ -217,7 +218,9 @@ async def _resume_agent(
         )
         return
 
-    text = response["messages"][-1].content
+    text = extract_last_ai_text(response["messages"])
+    if not text:
+        text = "(agent did not return text)"
     await client.chat_postMessage(
         channel=request["channel_id"],
         thread_ts=request["thread_ts"],
