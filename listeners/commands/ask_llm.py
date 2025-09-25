@@ -1,7 +1,14 @@
-from slack_bolt import Ack, Say, BoltContext
 from logging import Logger
+
+from slack_bolt import Ack, BoltContext, Say
 from slack_sdk import WebClient
-from ai.agents.react_agents.all_tools import ask_agent
+
+from ai.agents.react_agents.all_tools import SlackContext, ask_agent
+from langgraph.errors import GraphInterrupt
+from listeners.listener_utils.approvals import (
+    build_agent_response_blocks,
+    handle_approval_interrupt,
+)
 
 """
 Callback for handling the 'ask-llm' command. It acknowledges the command, retrieves the user's ID and prompt,
@@ -37,32 +44,36 @@ async def llm_callback(
                 text="Working on that for you. give me a second plz.",
             )
             agent_payload = {"messages": [{"role": "user", "content": prompt}]}
-            agent_kwargs = {"thread_id": thread_id}
-            response = await ask_agent(agent_payload, **agent_kwargs)
+            slack_context = SlackContext(
+                channel_id=channel_id,
+                user_id=user_id,
+                thread_ts=thread_ts,
+                thread_id=thread_id,
+            )
+
+            try:
+                response = await ask_agent(
+                    agent_payload, thread_id=thread_id, slack_context=slack_context
+                )
+            except GraphInterrupt as interrupt:
+                await handle_approval_interrupt(
+                    client=client,
+                    interrupt=interrupt,
+                    channel_id=channel_id,
+                    user_id=user_id,
+                    thread_ts=thread_ts,
+                    thread_id=thread_id,
+                    prompt=prompt,
+                    logger=logger,
+                )
+                return
+
             text = response["messages"][-1].content
             await client.chat_postMessage(
                 channel=channel_id,
                 user=user_id,
-                blocks=[
-                    {
-                        "type": "rich_text",
-                        "elements": [
-                            {
-                                "type": "rich_text_quote",
-                                "elements": [{"type": "text", "text": prompt}],
-                            },
-                            {
-                                "type": "rich_text_section",
-                                "elements": [
-                                    {
-                                        "type": "text",
-                                        "text": text,
-                                    }
-                                ],
-                            },
-                        ],
-                    }
-                ],
+                thread_ts=thread_ts,
+                blocks=build_agent_response_blocks(prompt, text),
             )
     except Exception as e:
         logger.error(e)

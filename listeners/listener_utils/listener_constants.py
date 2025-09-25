@@ -12,3 +12,8 @@ Please create a quick summary of the conversation in this channel to help them c
 Don't use user IDs or names in your response.
 """
 DEFAULT_LOADING_TEXT = "Thinking..."
+
+APPROVAL_ACTION_APPROVE = "approval_request_approve"
+APPROVAL_ACTION_REJECT = "approval_request_reject"
+APPROVAL_ACTION_EDIT = "approval_request_edit"
+APPROVAL_EDIT_MODAL_CALLBACK = "approval_request_edit_modal"
