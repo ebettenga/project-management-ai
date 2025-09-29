@@ -19,6 +19,7 @@ from .approval_actions import (
 )
 from .set_user_selection import set_user_selection
 from .set_management_platforms import set_management_platforms
+from .set_user_profile import set_user_profile_field
 from .question_actions import open_question_modal, submit_question_modal
 from .memory_forget_actions import delete_memory_request, skip_memory_request
 
@@ -26,6 +27,8 @@ from .memory_forget_actions import delete_memory_request, skip_memory_request
 def register(app: App):
     app.action("pick_a_provider")(set_user_selection)
     app.action("toggle_management_platforms")(set_management_platforms)
+    app.action("set_user_first_name")(set_user_profile_field)
+    app.action("set_user_last_name")(set_user_profile_field)
     app.action(APPROVAL_ACTION_APPROVE)(approve_request)
     app.action(APPROVAL_ACTION_REJECT)(reject_request)
     app.action(APPROVAL_ACTION_EDIT)(start_edit_request)

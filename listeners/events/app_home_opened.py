@@ -1,6 +1,10 @@
 from logging import Logger
 from ai.providers import get_available_providers
 from slack_sdk import WebClient
+from sqlalchemy import select
+
+from db.models import User
+from db.session import get_session
 from state_store.get_user_state import get_user_state
 from listeners.user_management_platforms import (
     get_user_management_platforms,
@@ -15,10 +19,36 @@ and publishes a view to the user's home tab in Slack.
 
 
 async def app_home_opened_callback(event: dict, logger: Logger, client: WebClient):
-    if event["tab"] != "home":
+    if event.get("tab") != "home":
         return
 
-    user_id = event["user"]
+    user_id = event.get("user")
+    if not user_id:
+        logger.error("app_home_opened event missing user field: %s", event)
+        return
+
+    try:
+        view = build_app_home_view(user_id)
+        await client.views_publish(user_id=user_id, view=view)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Failed to publish app home: %s", exc)
+
+
+def build_app_home_view(user_id: str) -> dict:
+    """Return the rendered view for the Slack App Home."""
+
+    first_name = ""
+    last_name = ""
+    with get_session() as session:
+        user_record = (
+            session.execute(select(User).where(User.slack_user_id == user_id))
+            .scalar_one_or_none()
+        )
+        if user_record is None:
+            user_record = User.create_if_not_exists(session, slack_user_id=user_id)
+
+        first_name = (user_record.first_name or "").strip()
+        last_name = (user_record.last_name or "").strip()
 
     # create a list of options for the dropdown menu each containing the model name and provider
     options = [
@@ -39,7 +69,7 @@ async def app_home_opened_callback(event: dict, logger: Logger, client: WebClien
     fallback_option = None
 
     if user_state:
-        initial_model = get_user_state(user_id, True)[1]
+        initial_model = user_state[1]
         # set the initial option to the user's previously selected model
         initial_option = list(
             filter(lambda x: x["value"].startswith(initial_model), options)
@@ -96,65 +126,97 @@ async def app_home_opened_callback(event: dict, logger: Logger, client: WebClien
         if initial_platform_options:
             platform_selection_element["initial_options"] = initial_platform_options
 
-    try:
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "Welcome to Bolty's Home Page!",
-                    "emoji": True,
+    first_name_input = {
+        "type": "input",
+        "block_id": "profile_first_name",
+        "dispatch_action": True,
+        "label": {"type": "plain_text", "text": "First name", "emoji": True},
+        "element": {
+            "type": "plain_text_input",
+            "action_id": "set_user_first_name",
+            "placeholder": {"type": "plain_text", "text": "Add your first name"},
+        },
+    }
+    if first_name:
+        first_name_input["element"]["initial_value"] = first_name
+
+    last_name_input = {
+        "type": "input",
+        "block_id": "profile_last_name",
+        "dispatch_action": True,
+        "label": {"type": "plain_text", "text": "Last name", "emoji": True},
+        "element": {
+            "type": "plain_text_input",
+            "action_id": "set_user_last_name",
+            "placeholder": {"type": "plain_text", "text": "Add your last name"},
+        },
+    }
+    if last_name:
+        last_name_input["element"]["initial_value"] = last_name
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Welcome to Bolty's Home Page!",
+                "emoji": True,
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    "*Your Profile*\nSet how Bolty addresses you in responses. "
+                    "Leave blank to skip."
+                ),
+            },
+        },
+        first_name_input,
+        last_name_input,
+        {"type": "divider"},
+        {
+            "type": "rich_text",
+            "elements": [
+                {
+                    "type": "rich_text_section",
+                    "elements": [
+                        {
+                            "type": "text",
+                            "text": "Pick an option",
+                            "style": {"bold": True},
+                        }
+                    ],
+                }
+            ],
+        },
+        {
+            "type": "actions",
+            "elements": [provider_select],
+        },
+    ]
+
+    if platform_selection_element:
+        blocks.extend(
+            [
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            "*Management Platforms*\nSelect the project management tools you "
+                            "want Bolty to use when helping you."
+                        ),
+                    },
                 },
-            },
-            {"type": "divider"},
-            {
-                "type": "rich_text",
-                "elements": [
-                    {
-                        "type": "rich_text_section",
-                        "elements": [
-                            {
-                                "type": "text",
-                                "text": "Pick an option",
-                                "style": {"bold": True},
-                            }
-                        ],
-                    }
-                ],
-            },
-            {
-                "type": "actions",
-                "elements": [provider_select],
-            },
-        ]
-
-        if platform_selection_element:
-            blocks.extend(
-                [
-                    {"type": "divider"},
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": (
-                                "*Management Platforms*\nSelect the project management tools you "
-                                "want Bolty to use when helping you."
-                            ),
-                        },
-                    },
-                    {
-                        "type": "actions",
-                        "elements": [platform_selection_element],
-                    },
-                ]
-            )
-
-        await client.views_publish(
-            user_id=user_id,
-            view={
-                "type": "home",
-                "blocks": blocks,
-            },
+                {
+                    "type": "actions",
+                    "elements": [platform_selection_element],
+                },
+            ]
         )
-    except Exception as e:
-        logger.error(e)
+
+    return {"type": "home", "blocks": blocks}

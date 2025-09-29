@@ -15,6 +15,7 @@ class UserPlatformSelection:
     """Representation of a user's management platform mapping."""
 
     slug: str
+    display_name: str | None
     platform_user_id: str | None
 
 
@@ -28,6 +29,7 @@ def get_user_management_platforms(slack_user_id: str | None) -> list[UserPlatfor
         stmt = (
             select(
                 ManagementPlatform.slug,
+                ManagementPlatform.display_name,
                 UserManagementPlatform.platform_user_id,
             )
             .join(UserManagementPlatform, ManagementPlatform.id == UserManagementPlatform.management_platform_id)
@@ -38,11 +40,18 @@ def get_user_management_platforms(slack_user_id: str | None) -> list[UserPlatfor
         rows = session.execute(stmt).all()
 
     selections: list[UserPlatformSelection] = []
-    for slug, platform_user_id in rows:
+    for slug, display_name, platform_user_id in rows:
         slug_value = (slug or "").strip()
         if not slug_value:
             continue
-        selections.append(UserPlatformSelection(slug=slug_value, platform_user_id=platform_user_id))
+        display_value = (display_name or "").strip() or None
+        selections.append(
+            UserPlatformSelection(
+                slug=slug_value,
+                display_name=display_value,
+                platform_user_id=platform_user_id,
+            )
+        )
 
     return selections
 

@@ -16,7 +16,11 @@ from listeners.agent_interrupts import (
     handle_agent_interrupt,
 )
 from listeners.agent_interrupts.common import SlackContext
-from listeners.user_preferences import build_rules_system_message, get_user_rules
+from listeners.user_preferences import (
+    build_rules_system_message,
+    build_user_metadata_message,
+    get_user_rules,
+)
 from ..listener_utils.listener_constants import DEFAULT_LOADING_TEXT
 
 """
@@ -79,6 +83,9 @@ async def app_mentioned_callback(client: WebClient, event: dict, logger: Logger,
 
         rules = get_user_rules(user_id)
         messages = []
+        metadata_message = build_user_metadata_message(user_id)
+        if metadata_message:
+            messages.append(metadata_message)
         rules_message = build_rules_system_message(rules)
         if rules_message:
             messages.append(rules_message)
