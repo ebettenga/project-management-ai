@@ -381,7 +381,7 @@ AGENT_PROMPT = (
     "You can reach MCP tools via this environment. "
     "Never guess, always call the tool first. "
     "Store any information you recieve to memory. "
-    "You primary help with located things in asana and performing actions on their behalf. "
+    "You primary help with located things in jira and performing actions on their behalf. "
     "keep research brief. "
     "if something doesn't make sense or you get stuck, ask the user before precending. "
     "Call tools proactively whenever they can help and then explain the result succinctly. "
@@ -403,14 +403,14 @@ _SERVER_CONFIG = {
         "transport": "stdio",
         "env": os.environ.copy(),
     },
-    # "jira": {"transport": "streamable_http", "url": "http://localhost:8010/mcp"},
+    "jira": {"transport": "streamable_http", "url": "http://localhost:8010/mcp"},
+    # "asana": {
+    #     "transport": "stdio",
+    #     "command": "npx",
+    #     "args": ["-y", "@roychri/mcp-server-asana"],
+    #     "env": os.environ.copy(),
+    # },
     "google": {"transport": "streamable_http", "url": "http://localhost:8000/mcp"},
-    "asana": {
-        "transport": "stdio",
-        "command": "npx",
-        "args": ["-y", "@roychri/mcp-server-asana"],
-        "env": os.environ.copy(),
-    },
 }
 
 client = MultiServerMCPClient(_SERVER_CONFIG)
