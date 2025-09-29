@@ -24,7 +24,7 @@ def upgrade() -> None:
         "users",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("slack_user_id", sa.String(length=64), nullable=False),
-        sa.Column("jira_user_id", sa.String(length=64), nullable=True),
+        sa.Column("management_platform_user_id", sa.String(length=64), nullable=True),
         sa.Column("first_name", sa.String(length=128), nullable=True),
         sa.Column("last_name", sa.String(length=128), nullable=True),
         sa.Column("model_preferences", sa.JSON(), nullable=True),

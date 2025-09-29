@@ -41,6 +41,11 @@
                 "command": "/clear",
                 "description": "clear the history of this channels conversation with the bot. conversations are channel specific.",
                 "should_escape": false
+            },
+            {
+                "command": "/rule",
+                "description": "Save a personal rule that Bolty should follow when responding to you.",
+                "should_escape": false
             }
         ]
     },
