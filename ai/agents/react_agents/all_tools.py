@@ -16,6 +16,7 @@ from listeners.agent_interrupts import (
     create_user_question_tool,
 )
 from ai.agents.react_agents.tool_wrappers import tool_approve
+from ai.agents.react_agents.thread_state import create_clear_thread_tool
 from listeners.agent_interrupts.common import SlackContext
 
 load_dotenv()
@@ -342,6 +343,12 @@ DEFAULT_APPROVAL_CONFIG: dict[str, dict[str, Any]] = {
         "allow_edit": True,
         "allow_reject": True,
     },
+    "clear_langgraph_thread": {
+        "summary": "Approve clearing the agent conversation history?",
+        "context": "This will remove stored LangGraph checkpoints for this Slack conversation so future interactions start fresh.",
+        "allow_edit": False,
+        "allow_reject": True,
+    },
     "export_doc_to_pdf": {
         "summary": "Approve exporting a Google Doc to PDF?",
         "context": "The agent will generate a PDF from the document and upload it to Google Drive.",
@@ -456,6 +463,7 @@ async def ask_agent(
         wrapped_tools.append(tool)
 
     tools = wrapped_tools
+    tools.append(create_clear_thread_tool(slack_context))
     tools.append(create_approval_tool(slack_context))
     # tools.append(create_user_question_tool(slack_context))
 

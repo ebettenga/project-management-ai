@@ -9,6 +9,7 @@ from slack_bolt import Say
 from slack_sdk import WebClient
 
 from ai.agents.react_agents.all_tools import ask_agent
+from ai.agents.react_agents.thread_state import get_or_create_thread_id
 from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
@@ -65,7 +66,9 @@ async def app_mentioned_callback(client: WebClient, event: dict, logger: Logger,
             thread_ts=thread_ts,
         )
 
-        thread_id = f"{user_id}-{channel_id}-{thread_ts}" if thread_ts else f"{user_id}-{channel_id}"
+        thread_id = get_or_create_thread_id(
+            channel_id=channel_id, user_id=user_id, thread_ts=thread_ts
+        )
         slack_context = SlackContext(
             channel_id=channel_id,
             user_id=user_id,
