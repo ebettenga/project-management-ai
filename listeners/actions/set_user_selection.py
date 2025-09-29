@@ -5,7 +5,7 @@ from state_store.set_user_state import set_user_state
 
 async def set_user_selection(logger: Logger, ack: Ack, body: dict):
     try:
-        ack()
+        await ack()
         user_id = body["user"]["id"]
         value = body["actions"][0]["selected_option"]["value"]
         if value != "null":
