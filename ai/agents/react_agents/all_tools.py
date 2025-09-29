@@ -113,6 +113,10 @@ _SERVER_CONFIG = {
         "transport": "streamable_http",
         "url": "http://localhost:8000/mcp"
     },
+    "google": {
+        "transport": "streamable_http",
+        "url": "http://localhost:8010/mcp"
+    }
     # "asana": {
     #   "command": "npx",
     #   "args": ["-y", "@roychri/mcp-server-asana"],
