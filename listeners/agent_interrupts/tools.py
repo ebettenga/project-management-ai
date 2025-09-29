@@ -50,10 +50,20 @@ def create_approval_tool(
     )
 
 
+
 def create_user_question_tool(
     slack_context: Optional["SlackContext"],
 ) -> StructuredTool:
-    """Create a structured tool that asks a Slack user for input via an interrupt."""
+    """
+    NOT IN USE:
+
+    This tool has a wierd flow where it pops a card with a button, but the agent becomes un-usable until that answer is filled out.
+    Afterwords, the agent doesn't seem to respond and get stuck in a weird state.
+
+    This thing is fucked atm.
+
+    Create a structured tool that asks a Slack user for input via an interrupt.
+    """
 
     context_payload = slack_context.as_json() if slack_context else None
 

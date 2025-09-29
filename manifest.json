@@ -36,6 +36,11 @@
                 "command": "/forget",
                 "description": "find and delete saved memories.",
                 "should_escape": false
+            },
+            {
+                "command": "/clear",
+                "description": "clear the history of this channels conversation with the bot. conversations are channel specific.",
+                "should_escape": false
             }
         ]
     },

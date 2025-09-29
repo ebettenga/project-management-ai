@@ -41,23 +41,19 @@ def build_agent_response_blocks(prompt: str, response_text: str) -> list[dict[st
 
     return [
         {
-            "type": "rich_text",
-            "elements": [
-                {
-                    "type": "rich_text_quote",
-                    "elements": [{"type": "text", "text": safe_prompt}],
-                },
-                {
-                    "type": "rich_text_section",
-                    "elements": [
-                        {
-                            "type": "text",
-                            "text": safe_response,
-                        }
-                    ],
-                },
-            ],
-        }
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"> {safe_prompt}",
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": safe_response,
+            },
+        },
     ]
 
 

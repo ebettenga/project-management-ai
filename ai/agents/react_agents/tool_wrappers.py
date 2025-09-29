@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import re
 import threading
 from dataclasses import asdict, is_dataclass
 from typing import Any, Awaitable, Callable, Optional
@@ -24,15 +25,6 @@ def _ensure_tool_instance(tool: Callable | BaseTool) -> BaseTool:
     return create_tool(tool)
 
 
-def _dump_tool_args(tool_args: dict) -> str:
-    """Produce a stable string representation for tool arguments."""
-
-    try:
-        return json.dumps(tool_args, sort_keys=True, default=_fallback_json_encoder)
-    except TypeError:
-        return str(tool_args)
-
-
 def _fallback_json_encoder(value):  # type: ignore[no-untyped-def]
     if is_dataclass(value):
         return asdict(value)
@@ -41,6 +33,67 @@ def _fallback_json_encoder(value):  # type: ignore[no-untyped-def]
     if hasattr(value, "__dict__"):
         return value.__dict__
     return repr(value)
+
+
+def _humanize_tool_name(name: str) -> str:
+    """Convert a tool identifier into a human-friendly label."""
+
+    cleaned = re.sub(r"[_\s]+", " ", name or "").strip()
+    if not cleaned:
+        return "Tool Call"
+    return cleaned[:1].upper() + cleaned[1:]
+
+
+def _humanize_arg_label(value: str) -> str:
+    """Convert an argument name into a human-friendly label."""
+
+    cleaned = re.sub(r"[_\s]+", " ", value or "").strip()
+    if not cleaned:
+        return "Value"
+    return cleaned[:1].upper() + cleaned[1:]
+
+
+def _is_simple_value(value: Any) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def _format_argument_block(arguments: dict[str, Any]) -> str:
+    """Format tool arguments as a human-readable block."""
+
+    if not arguments:
+        return "No arguments provided."
+
+    lines: list[str] = []
+    for raw_key, raw_value in arguments.items():
+        label = _humanize_arg_label(str(raw_key))
+        if _is_simple_value(raw_value):
+            display_value = "None" if raw_value is None else str(raw_value)
+            lines.append(f"{label}: {display_value}")
+            continue
+
+        try:
+            serialized = json.dumps(
+                raw_value,
+                indent=2,
+                ensure_ascii=False,
+                default=_fallback_json_encoder,
+            )
+        except TypeError:
+            serialized = str(raw_value)
+
+        lines.append(f"{label}:\n{serialized}")
+
+    return "\n".join(lines)
+
+
+def _format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
+    """Generate a human-readable description of a tool call."""
+
+    header = f"{_humanize_tool_name(tool_name)}?"
+    body = _format_argument_block(tool_input)
+    if body:
+        return f"{header}\n\n{body}"
+    return header
 
 
 def tool_approve(
@@ -59,7 +112,7 @@ def tool_approve(
         summary = f"Approve running tool `{base_tool.name}`?"
 
     def _build_payload(tool_input: dict) -> dict[str, object]:
-        call_representation = f"{base_tool.name}({_dump_tool_args(tool_input)})"
+        call_representation = _format_tool_call(base_tool.name, tool_input)
         return {
             "type": "approval_request",
             "summary": summary,
