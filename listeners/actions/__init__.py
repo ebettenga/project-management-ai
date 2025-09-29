@@ -9,6 +9,7 @@ from listeners.listener_utils.listener_constants import (
     QUESTION_MODAL_CALLBACK,
     FORGET_ACTION_DELETE,
     FORGET_ACTION_SKIP,
+    RULE_ACTION_DELETE,
 )
 
 from .approval_actions import (
@@ -22,6 +23,7 @@ from .set_management_platforms import set_management_platforms
 from .set_user_profile import set_user_profile_field
 from .question_actions import open_question_modal, submit_question_modal
 from .memory_forget_actions import delete_memory_request, skip_memory_request
+from .delete_user_rule import delete_user_rule
 
 
 def register(app: App):
@@ -37,3 +39,4 @@ def register(app: App):
     app.view(QUESTION_MODAL_CALLBACK)(submit_question_modal)
     app.action(FORGET_ACTION_DELETE)(delete_memory_request)
     app.action(FORGET_ACTION_SKIP)(skip_memory_request)
+    app.action(RULE_ACTION_DELETE)(delete_user_rule)

@@ -5,11 +5,13 @@ from sqlalchemy import select
 
 from db.models import User
 from db.session import get_session
+from listeners.user_preferences import extract_rules_from_preferences
 from state_store.get_user_state import get_user_state
 from listeners.user_management_platforms import (
     get_user_management_platforms,
     list_management_platforms,
 )
+from listeners.listener_utils.listener_constants import RULE_ACTION_DELETE
 
 """
 Callback for handling the 'app_home_opened' event. It checks if the event is for the 'home' tab,
@@ -39,6 +41,7 @@ def build_app_home_view(user_id: str) -> dict:
 
     first_name = ""
     last_name = ""
+    rules: list[str] = []
     with get_session() as session:
         user_record = (
             session.execute(select(User).where(User.slack_user_id == user_id))
@@ -49,6 +52,7 @@ def build_app_home_view(user_id: str) -> dict:
 
         first_name = (user_record.first_name or "").strip()
         last_name = (user_record.last_name or "").strip()
+        rules = extract_rules_from_preferences(user_record.model_preferences)
 
     # create a list of options for the dropdown menu each containing the model name and provider
     options = [
@@ -217,6 +221,58 @@ def build_app_home_view(user_id: str) -> dict:
                     "elements": [platform_selection_element],
                 },
             ]
+        )
+
+    blocks.extend(
+        [
+            {"type": "divider"},
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Personal Rules*\nThese instructions guide Bolty's responses.",
+                },
+            },
+        ]
+    )
+
+    if rules:
+        for rule in rules:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"- {rule}"},
+                    "accessory": {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Delete", "emoji": True},
+                        "style": "danger",
+                        "action_id": RULE_ACTION_DELETE,
+                        "value": rule,
+                        "confirm": {
+                            "title": {"type": "plain_text", "text": "Delete rule?"},
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": "Are you sure you want to remove this rule?",
+                            },
+                            "confirm": {"type": "plain_text", "text": "Delete"},
+                            "deny": {"type": "plain_text", "text": "Cancel"},
+                        },
+                    },
+                }
+            )
+    else:
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": (
+                            "You haven't added any rules yet. Use `/rule` in Slack to create one."
+                        ),
+                    }
+                ],
+            }
         )
 
     return {"type": "home", "blocks": blocks}

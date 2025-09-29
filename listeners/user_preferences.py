@@ -2,13 +2,36 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from db.models import ManagementPlatform, User, UserManagementPlatform
 from db.session import get_session
+
+
+def _clean_rule_list(rules: Sequence[Any]) -> list[str]:
+    cleaned: list[str] = []
+    for rule in rules:
+        text = str(rule).strip()
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def extract_rules_from_preferences(preferences: Any) -> list[str]:
+    """Return the sanitized rule list embedded in a preferences mapping."""
+
+    if not isinstance(preferences, Mapping):
+        return []
+
+    rules = preferences.get("rules")
+    if not isinstance(rules, Sequence) or isinstance(rules, (str, bytes)):
+        return []
+
+    return _clean_rule_list(rules)
 
 
 def get_user_rules(slack_user_id: str) -> list[str]:
@@ -25,19 +48,7 @@ def get_user_rules(slack_user_id: str) -> list[str]:
         if result is None:
             return []
 
-        prefs = result.model_preferences or {}
-        rules = prefs.get("rules") if isinstance(prefs, dict) else None
-
-        if not isinstance(rules, Sequence) or isinstance(rules, (str, bytes)):
-            return []
-
-        cleaned: list[str] = []
-        for rule in rules:
-            text = str(rule).strip()
-            if text:
-                cleaned.append(text)
-
-        return cleaned
+        return extract_rules_from_preferences(result.model_preferences)
 
 
 def build_rules_system_message(rules: list[str]) -> dict[str, str] | None:
