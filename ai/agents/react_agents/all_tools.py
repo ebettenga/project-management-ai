@@ -111,11 +111,11 @@ _SERVER_CONFIG = {
     },
     "jira": {
         "transport": "streamable_http",
-        "url": "http://localhost:8000/mcp"
+        "url": "http://localhost:8010/mcp"
     },
     "google": {
         "transport": "streamable_http",
-        "url": "http://localhost:8010/mcp"
+        "url": "http://localhost:8000/mcp"
     }
     # "asana": {
     #   "command": "npx",
