@@ -386,6 +386,19 @@ def _load_approval_config() -> dict[str, dict[str, Any]]:
 
 APPROVAL_CONFIG = _load_approval_config()
 
+
+AGENT_PROMPT = (
+    "You are a project management assistant in a slack app. "
+    "You can reach MCP tools via this environment. "
+    "Never guess, always call the tool first. "
+    "Store any information you recieve to memory. "
+    "You primarily help with locating things in the user's preferred task management service and performing actions on their behalf. "
+    "keep research brief. "
+    "if something doesn't make sense or you get stuck, ask the user before precending. "
+    "Call tools proactively whenever they can help and then explain the result succinctly. "
+)
+
+>>>>>>> main
 _BASE_SERVER_CONFIG: dict[str, dict[str, Any]] = {
     "time": {
         "command": "python",
