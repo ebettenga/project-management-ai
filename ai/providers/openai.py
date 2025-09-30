@@ -1,7 +1,9 @@
-import openai
-from .base_provider import BaseAPIProvider
-import os
 import logging
+
+import openai
+
+from .base_provider import BaseAPIProvider
+from config import get_settings
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ class OpenAI_API(BaseAPIProvider):
     }
 
     def __init__(self):
-        self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.api_key = get_settings().openai_api_key
 
     def set_model(self, model_name: str):
         if model_name not in self.MODELS.keys():

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import uuid
 import zlib
@@ -10,26 +9,22 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
-from pydantic import BaseModel
+
 from mcp.server.fastmcp import FastMCP
-
 from openai import OpenAI
-
-
+from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
-    SparseVector,
-    SparseVectorParams,
-    PointIdsList,
-    PointStruct,
-    VectorParams,
     Distance,
     NamedVector,
+    PointIdsList,
+    PointStruct,
+    SparseVector,
+    SparseVectorParams,
+    VectorParams,
 )
 
-from dotenv import load_dotenv
-
-load_dotenv()
+from config import get_settings
 
 
 mcp = FastMCP("Tools to add and search saved information from slack")
@@ -104,25 +99,26 @@ class MemoryExtractionSchema(BaseModel):
 
 class MemoryService:
     def __init__(self) -> None:
-        self.collection_name = os.getenv("MEMORY_COLLECTION", "memories")
-        self.dense_name = os.getenv("MEMORY_DENSE_VECTOR_NAME", "dense")
-        self.sparse_name = os.getenv("MEMORY_SPARSE_VECTOR_NAME", "bm25")
+        config = get_settings().memory
 
-        embed_model = os.getenv("MEMORY_EMBEDDING_MODEL", DEFAULT_EMBED_MODEL)
+        self.collection_name = config.collection
+        self.dense_name = config.dense_vector_name
+        self.sparse_name = config.sparse_vector_name
+
+        embed_model = config.embedding_model or DEFAULT_EMBED_MODEL
         self.embedding_model = embed_model
         self.embedding_dim = EMBEDDING_SIZES.get(
             embed_model, EMBEDDING_SIZES[DEFAULT_EMBED_MODEL]
         )
 
-        llm_model = os.getenv("MEMORY_LLM_MODEL", "gpt-4.1-mini")
-        self.llm_model = llm_model
+        self.llm_model = config.llm_model
 
-        api_key = os.getenv("OPENAI_API_KEY")
-        self.openai = OpenAI(api_key=api_key)
+        self.openai = OpenAI(api_key=config.openai_api_key)
 
-        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
-        qdrant_port = int(os.getenv("QDRANT_HTTP_PORT", "6333"))
-        self.client = QdrantClient(host=qdrant_host, port=qdrant_port)
+        self.client = QdrantClient(
+            host=config.qdrant_host,
+            port=config.qdrant_http_port,
+        )
 
         self._ensure_collection()
 

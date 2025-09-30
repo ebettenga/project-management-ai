@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from functools import lru_cache
 from typing import Any
 
@@ -12,6 +11,8 @@ try:  # pragma: no cover - graceful fallback if the SDK is missing
     from langfuse import Langfuse
 except Exception:  # broad: import error or runtime issues when loading the SDK
     Langfuse = None  # type: ignore[assignment]
+
+from config import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,8 @@ _DEFAULT_INFERRED_PROMPT = (
     "to determine how to help. If you are unsure, ask the user for clarification."
 )
 
-_LANGFUSE_PROMPT_LABEL = os.getenv("LANGFUSE_PROMPT_LABEL")
+_settings = get_settings()
+_LANGFUSE_PROMPT_LABEL = _settings.langfuse_prompt_label
 
 _client: Langfuse | None = None
 _client_init_failed = False
@@ -121,7 +123,7 @@ def get_agent_prompt() -> str:
     """Return the agent instruction prompt."""
 
     return _get_prompt_text(
-        name=os.getenv("LANGFUSE_AGENT_PROMPT_NAME"),
+        name=_settings.langfuse_agent_prompt_name,
         fallback=_DEFAULT_AGENT_PROMPT,
     )
 
@@ -131,7 +133,7 @@ def get_default_dm_prompt() -> str:
     """Return the fallback prompt for empty DM messages."""
 
     return _get_prompt_text(
-        name=os.getenv("LANGFUSE_DM_PROMPT_NAME"),
+        name=_settings.langfuse_dm_prompt_name,
         fallback=_DEFAULT_DM_PROMPT,
     )
 
@@ -141,7 +143,6 @@ def get_default_inferred_prompt() -> str:
     """Return the fallback prompt for inferred mention handling."""
 
     return _get_prompt_text(
-        name=os.getenv("LANGFUSE_INFERRED_PROMPT_NAME"),
+        name=_settings.langfuse_inferred_prompt_name,
         fallback=_DEFAULT_INFERRED_PROMPT,
     )
-

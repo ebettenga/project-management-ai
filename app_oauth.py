@@ -1,5 +1,5 @@
 import logging
-import os
+
 from slack_bolt import App, BoltResponse
 from slack_bolt.oauth.callback_options import CallbackOptions, SuccessArgs, FailureArgs
 from slack_bolt.oauth.oauth_settings import OAuthSettings
@@ -8,9 +8,12 @@ from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
 
 from listeners import register_listeners
+from config import get_settings
 
 logging.basicConfig(level=logging.DEBUG)
 
+settings = get_settings()
+oauth_settings = settings.slack_oauth
 
 # Callback to run on successful installation
 def success(args: SuccessArgs) -> BoltResponse:
@@ -27,11 +30,11 @@ def failure(args: FailureArgs) -> BoltResponse:
 
 # Initialization
 app = App(
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+    signing_secret=oauth_settings.signing_secret,
     installation_store=FileInstallationStore(),
     oauth_settings=OAuthSettings(
-        client_id=os.environ.get("SLACK_CLIENT_ID"),
-        client_secret=os.environ.get("SLACK_CLIENT_SECRET"),
+        client_id=oauth_settings.client_id,
+        client_secret=oauth_settings.client_secret,
         scopes=["channels:history", "chat:write", "commands"],
         user_scopes=[],
         redirect_uri=None,

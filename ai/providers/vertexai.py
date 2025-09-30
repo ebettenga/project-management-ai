@@ -1,10 +1,10 @@
 import logging
-import os
 
 import google.api_core.exceptions
 import vertexai.generative_models
 
 from .base_provider import BaseAPIProvider
+from config import get_settings
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
@@ -70,11 +70,12 @@ class VertexAPI(BaseAPIProvider):
     }
 
     def __init__(self):
-        self.enabled = bool(os.environ.get("VERTEX_AI_PROJECT_ID", ""))
+        settings = get_settings()
+        self.enabled = bool(settings.vertex_ai_project_id)
         if self.enabled:
             vertexai.init(
-                project=os.environ.get("VERTEX_AI_PROJECT_ID"),
-                location=os.environ.get("VERTEX_AI_LOCATION"),
+                project=settings.vertex_ai_project_id,
+                location=settings.vertex_ai_location,
             )
 
     def set_model(self, model_name: str):

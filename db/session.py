@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import contextlib
-import os
 from collections.abc import Generator
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from config import get_settings
+
 
 def _build_conn_str() -> str:
-    conn_str = os.getenv("POSTGRES_URL")
+    conn_str = get_settings().postgres_url
     if not conn_str:
-        raise RuntimeError("POSTGRES_URL environment variable is not set")
+        raise RuntimeError("POSTGRES_URL is not configured")
     return conn_str
 
 
