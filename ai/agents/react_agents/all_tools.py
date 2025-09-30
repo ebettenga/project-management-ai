@@ -398,7 +398,7 @@ AGENT_PROMPT = (
     "Call tools proactively whenever they can help and then explain the result succinctly. "
 )
 
->>>>>>> main
+
 _BASE_SERVER_CONFIG: dict[str, dict[str, Any]] = {
     "time": {
         "command": "python",
