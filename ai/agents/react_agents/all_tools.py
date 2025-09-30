@@ -1,5 +1,6 @@
 """LangGraph agent wired to MCP tools used by the Slack ask command."""
 
+import copy
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from listeners.agent_interrupts import (
 from ai.agents.react_agents.tool_wrappers import tool_approve
 from ai.agents.react_agents.thread_state import create_clear_thread_tool
 from listeners.agent_interrupts.common import SlackContext
+from listeners.user_management_platforms import get_user_management_platforms
 
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
@@ -388,13 +390,13 @@ AGENT_PROMPT = (
     "You can reach MCP tools via this environment. "
     "Never guess, always call the tool first. "
     "Store any information you recieve to memory. "
-    "You primary help with located things in jira and performing actions on their behalf. "
+    "You primarily help with locating things in the user's preferred task management service and performing actions on their behalf. "
     "keep research brief. "
     "if something doesn't make sense or you get stuck, ask the user before precending. "
     "Call tools proactively whenever they can help and then explain the result succinctly. "
 )
 
-_SERVER_CONFIG = {
+_BASE_SERVER_CONFIG: dict[str, dict[str, Any]] = {
     "time": {
         "command": "python",
         "args": [
@@ -410,17 +412,39 @@ _SERVER_CONFIG = {
         "transport": "stdio",
         "env": os.environ.copy(),
     },
-    "jira": {"transport": "streamable_http", "url": "http://localhost:8010/mcp"},
-    # "asana": {
-    #     "transport": "stdio",
-    #     "command": "npx",
-    #     "args": ["-y", "@roychri/mcp-server-asana"],
-    #     "env": os.environ.copy(),
-    # },
     "google": {"transport": "streamable_http", "url": "http://localhost:8000/mcp"},
 }
 
-client = MultiServerMCPClient(_SERVER_CONFIG)
+_MANAGEMENT_PLATFORM_SERVER_CONFIG: dict[str, dict[str, Any]] = {
+    "jira": {"transport": "streamable_http", "url": "http://localhost:8010/mcp"},
+    "asana": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@roychri/mcp-server-asana"],
+        "env": os.environ.copy(),
+    },
+}
+
+
+def _build_server_config(slack_context: Optional[SlackContext]) -> dict[str, dict[str, Any]]:
+    """Return a server configuration tailored to the requesting user's platforms."""
+
+    config = copy.deepcopy(_BASE_SERVER_CONFIG)
+
+    slack_user_id = slack_context.user_id if slack_context else None
+    selections = get_user_management_platforms(slack_user_id)
+    seen_slugs: set[str] = set()
+    for selection in selections:
+        slug = selection.slug.lower()
+        if slug in seen_slugs:
+            continue
+        server_entry = _MANAGEMENT_PLATFORM_SERVER_CONFIG.get(slug)
+        if not server_entry:
+            continue
+        config[slug] = copy.deepcopy(server_entry)
+        seen_slugs.add(slug)
+
+    return config
 
 
 async def ask_agent(
@@ -439,41 +463,50 @@ async def ask_agent(
     if thread_id:
         config["configurable"].update({"thread_id": thread_id})
 
-    tools = list(await client.get_tools())
-    wrapped_tools: list[BaseTool] = []
-    removal_list = []
-    for tool in tools:
-        tool_name = getattr(tool, "name", "")
+    server_config = _build_server_config(slack_context)
+    client = MultiServerMCPClient(server_config)
 
-        approval_settings = APPROVAL_CONFIG.get(tool_name)
-        if approval_settings:
-            wrapped_tools.append(
-                tool_approve(
-                    tool,
-                    summary=approval_settings.get("summary"),
-                    context=approval_settings.get("context"),
-                    allow_edit=approval_settings.get("allow_edit", False),
-                    allow_reject=approval_settings.get("allow_reject", True),
+    try:
+        tools = list(await client.get_tools())
+        wrapped_tools: list[BaseTool] = []
+        for tool in tools:
+            tool_name = getattr(tool, "name", "")
+
+            approval_settings = APPROVAL_CONFIG.get(tool_name)
+            if approval_settings:
+                wrapped_tools.append(
+                    tool_approve(
+                        tool,
+                        summary=approval_settings.get("summary"),
+                        context=approval_settings.get("context"),
+                        allow_edit=approval_settings.get("allow_edit", False),
+                        allow_reject=approval_settings.get("allow_reject", True),
+                    )
                 )
+                continue
+            # We add tools that aren't wrapped here so we can just replace the tools wholesale
+            wrapped_tools.append(tool)
+
+        tools = wrapped_tools
+        tools.append(create_clear_thread_tool(slack_context))
+        tools.append(create_approval_tool(slack_context))
+        # tools.append(create_user_question_tool(slack_context))
+
+        async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
+            await checkpointer.setup()
+            agent = create_react_agent(
+                "openai:gpt-4.1",
+                tools,
+                prompt=AGENT_PROMPT,
+                checkpointer=checkpointer,
             )
-            removal_list.append(tool)
 
-            continue
-        # We add tools that aren't wrapped here so we can just replace the tools wholesale
-        wrapped_tools.append(tool)
-
-    tools = wrapped_tools
-    tools.append(create_clear_thread_tool(slack_context))
-    tools.append(create_approval_tool(slack_context))
-    # tools.append(create_user_question_tool(slack_context))
-
-    async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
-        await checkpointer.setup()
-        agent = create_react_agent(
-            "openai:gpt-4.1",
-            tools,
-            prompt=AGENT_PROMPT,
-            checkpointer=checkpointer,
-        )
-
-        return await agent.ainvoke(payload, config=config)
+            return await agent.ainvoke(payload, config=config)
+    finally:
+        close_async = getattr(client, "aclose", None)
+        if callable(close_async):
+            await close_async()
+        else:
+            close_sync = getattr(client, "close", None)
+            if callable(close_sync):
+                close_sync()

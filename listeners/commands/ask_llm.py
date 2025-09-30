@@ -6,6 +6,11 @@ from slack_sdk import WebClient
 from ai.agents.react_agents.all_tools import ask_agent
 from ai.agents.react_agents.thread_state import get_or_create_thread_id
 from listeners.agent_interrupts.common import SlackContext
+from listeners.user_preferences import (
+    build_rules_system_message,
+    build_user_metadata_message,
+    get_user_rules,
+)
 from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
@@ -44,7 +49,17 @@ async def llm_callback(
                 user=user_id,
                 text="Working on that for you. give me a second plz.",
             )
-            agent_payload = {"messages": [{"role": "user", "content": prompt}]}
+            rules = get_user_rules(user_id)
+            messages = []
+            metadata_message = build_user_metadata_message(user_id)
+            if metadata_message:
+                messages.append(metadata_message)
+            rules_message = build_rules_system_message(rules)
+            if rules_message:
+                messages.append(rules_message)
+            messages.append({"role": "user", "content": prompt})
+
+            agent_payload = {"messages": messages}
             slack_context = SlackContext(
                 channel_id=channel_id,
                 user_id=user_id,
