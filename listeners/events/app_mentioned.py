@@ -10,6 +10,7 @@ from slack_sdk import WebClient
 
 from ai.agents.react_agents.all_tools import ask_agent
 from ai.agents.react_agents.thread_state import get_or_create_thread_id
+from ai.prompts import get_default_inferred_prompt
 from listeners.agent_interrupts import (
     build_agent_response_blocks,
     extract_last_ai_text,
@@ -47,7 +48,7 @@ async def app_mentioned_callback(client: WebClient, event: dict, logger: Logger,
         thread_ts = event_ts
 
     if not cleaned_text:
-        cleaned_text = _DEFAULT_INFERRED_PROMPT
+        cleaned_text = get_default_inferred_prompt()
 
     waiting_message = None
 
@@ -190,13 +191,6 @@ def _build_agent_prompt(
         return f"{context_block}\n\nMost recent message from {current_user}: {current_text}"
 
     return f"Message from {current_user}: {current_text}"
-
-
-_DEFAULT_INFERRED_PROMPT = (
-    "The user mentioned you without additional instructions. Review the recent Slack context "
-    "to determine how to help. If you are unsure, ask the user for clarification."
-)
-
 
 MENTION_PREFIX_PATTERN = re.compile(r"^<@[^>]+>\s*")
 

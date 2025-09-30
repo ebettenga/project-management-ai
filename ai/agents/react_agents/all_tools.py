@@ -18,6 +18,7 @@ from listeners.agent_interrupts import (
 )
 from ai.agents.react_agents.tool_wrappers import tool_approve
 from ai.agents.react_agents.thread_state import create_clear_thread_tool
+from ai.prompts import get_agent_prompt
 from listeners.agent_interrupts.common import SlackContext
 from listeners.user_management_platforms import get_user_management_platforms
 
@@ -385,6 +386,7 @@ def _load_approval_config() -> dict[str, dict[str, Any]]:
 
 APPROVAL_CONFIG = _load_approval_config()
 
+
 AGENT_PROMPT = (
     "You are a project management assistant in a slack app. "
     "You can reach MCP tools via this environment. "
@@ -396,6 +398,7 @@ AGENT_PROMPT = (
     "Call tools proactively whenever they can help and then explain the result succinctly. "
 )
 
+>>>>>>> main
 _BASE_SERVER_CONFIG: dict[str, dict[str, Any]] = {
     "time": {
         "command": "python",
@@ -494,10 +497,11 @@ async def ask_agent(
 
         async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
             await checkpointer.setup()
+            agent_prompt = get_agent_prompt()
             agent = create_react_agent(
                 "openai:gpt-4.1",
                 tools,
-                prompt=AGENT_PROMPT,
+                prompt=agent_prompt,
                 checkpointer=checkpointer,
             )
 
