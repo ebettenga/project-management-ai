@@ -63,6 +63,7 @@ services:
     container_name: langfuse
     env_file:
       - .env
+    restart: unless-stopped
     environment:
       - DATABASE_URL=${LANGFUSE_DATABASE_URL}
       - NEXTAUTH_URL=${LANGFUSE_NEXTAUTH_URL:-http://localhost:${LANGFUSE_PORT:-3000}}
@@ -74,6 +75,13 @@ services:
       - CLICKHOUSE_PASSWORD=${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
       - CLICKHOUSE_MIGRATION_URL=clickhouse://${LANGFUSE_CLICKHOUSE_USER:-clickhouse}:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}@langfuse-clickhouse:9000
       - CLICKHOUSE_CLUSTER_ENABLED=false
+      - LANGFUSE_S3_EVENT_UPLOAD_BUCKET=${LANGFUSE_S3_EVENT_UPLOAD_BUCKET}
+      - LANGFUSE_S3_EVENT_UPLOAD_PREFIX=${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      - LANGFUSE_S3_EVENT_UPLOAD_REGION=${LANGFUSE_S3_EVENT_UPLOAD_REGION}
+      - LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT=${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT}
+      - LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID=${LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID}
+      - LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=${LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY}
+      - LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE=${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
       - REDIS_HOST=langfuse-redis
       - REDIS_PORT=6379
       - REDIS_AUTH=${LANGFUSE_REDIS_PASSWORD:-redis}
@@ -83,7 +91,9 @@ services:
       langfuse-redis:
         condition: service_started
       langfuse-clickhouse:
-        condition: service_started
+        condition: service_healthy
+      langfuse-minio-init:
+        condition: service_completed_successfully
     ports:
       - "${LANGFUSE_PORT:-3000}:3000"
     networks:
@@ -94,6 +104,7 @@ services:
     container_name: langfuse-worker
     env_file:
       - .env
+    restart: unless-stopped
     environment:
       - DATABASE_URL=${LANGFUSE_DATABASE_URL}
       - NEXTAUTH_URL=${LANGFUSE_NEXTAUTH_URL:-http://langfuse:3000}
@@ -104,6 +115,13 @@ services:
       - CLICKHOUSE_PASSWORD=${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
       - CLICKHOUSE_MIGRATION_URL=clickhouse://${LANGFUSE_CLICKHOUSE_USER:-clickhouse}:${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}@langfuse-clickhouse:9000
       - CLICKHOUSE_CLUSTER_ENABLED=false
+      - LANGFUSE_S3_EVENT_UPLOAD_BUCKET=${LANGFUSE_S3_EVENT_UPLOAD_BUCKET}
+      - LANGFUSE_S3_EVENT_UPLOAD_PREFIX=${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      - LANGFUSE_S3_EVENT_UPLOAD_REGION=${LANGFUSE_S3_EVENT_UPLOAD_REGION}
+      - LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT=${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT}
+      - LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID=${LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID}
+      - LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=${LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY}
+      - LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE=${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
       - REDIS_HOST=langfuse-redis
       - REDIS_PORT=6379
       - REDIS_AUTH=${LANGFUSE_REDIS_PASSWORD:-redis}
@@ -113,7 +131,9 @@ services:
       langfuse-redis:
         condition: service_started
       langfuse-clickhouse:
-        condition: service_started
+        condition: service_healthy
+      langfuse-minio-init:
+        condition: service_completed_successfully
     networks:
       - mcp-network
 
@@ -125,6 +145,49 @@ services:
       - .env
     ports:
       - "${LANGFUSE_REDIS_PORT:-6379}:6379"
+    networks:
+      - mcp-network
+
+  langfuse-minio:
+    image: minio/minio:latest
+    container_name: langfuse-minio
+    env_file:
+      - .env
+    environment:
+      - MINIO_ROOT_USER=${LANGFUSE_MINIO_ROOT_USER:-langfuse}
+      - MINIO_ROOT_PASSWORD=${LANGFUSE_MINIO_ROOT_PASSWORD:-langfuse-secret}
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "${LANGFUSE_MINIO_API_PORT:-9100}:9000"
+      - "${LANGFUSE_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mcp-network
+
+  langfuse-minio-init:
+    image: minio/mc:latest
+    container_name: langfuse-minio-init
+    env_file:
+      - .env
+    depends_on:
+      langfuse-minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      set -euo pipefail;
+      BUCKET="${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse-events}";
+      mc alias set langfuse-minio http://langfuse-minio:9000 "${LANGFUSE_MINIO_ROOT_USER:-langfuse}" "${LANGFUSE_MINIO_ROOT_PASSWORD:-langfuse-secret}";
+      if ! mc ls "langfuse-minio/${BUCKET}" >/dev/null 2>&1; then
+        mc mb -p "langfuse-minio/${BUCKET}";
+      fi;
+      mc ls "langfuse-minio/${BUCKET}";
     networks:
       - mcp-network
 
@@ -143,6 +206,16 @@ services:
     volumes:
       - langfuse-clickhouse-data:/var/lib/clickhouse
       - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "clickhouse-client --host localhost --user ${LANGFUSE_CLICKHOUSE_USER:-clickhouse} --password ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse} --query 'SELECT 1'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     networks:
       - mcp-network
 
@@ -151,6 +224,7 @@ volumes:
   qdrant-data:
   langfuse-clickhouse-data:
   langfuse-clickhouse-logs:
+  langfuse-minio-data:
 
 
 networks:
