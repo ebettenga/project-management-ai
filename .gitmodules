@@ -1,3 +1,0 @@
-[submodule "ai/agents/mcp/google_mcp"]
-	path = ai/agents/mcp/google_mcp
-	url = git@github.com:taylorwilsdon/google_workspace_mcp.git
