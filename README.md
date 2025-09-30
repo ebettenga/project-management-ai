@@ -8,7 +8,8 @@ This Slack chatbot app template offers a customizable solution for integrating A
 * Utilize a custom function for integration with Workflow Builder to summarize messages in conversations
 * Select your preferred API/model from the app home to customize the bot's responses
 * Bring Your Own Language Model [BYO LLM](#byo-llm) for customization
-* Custom FileStateStore creates a file in /data per user to store API/model preferences
+* Provider selections persist in Postgres (stored in `user_provider_selections`) so users keep their preferred model across sessions
+* Jira user lookup MCP tool lets the bot retrieve account IDs for mentioning or assigning issues
 
 Inspired by [ChatGPT-in-Slack](https://github.com/seratch/ChatGPT-in-Slack/tree/main)
 
@@ -136,13 +137,13 @@ This file contains utility functions for handling responses from the provider AP
 
 * `user_identity.py`: This file defines the UserIdentity class for creating user objects. Each object represents a user with the user_id, provider, and model attributes.
 
-* `user_state_store.py`: This file defines the base class for FileStateStore.
+* `user_state_store.py`: This file defines the base interface for user state persistence.
 
-* `file_state_store.py`: This file defines the FileStateStore class which handles the logic for creating and managing files for each user.
+* `postgres_state_store.py`: This file provides the Postgres-backed implementation that stores provider selections in the dedicated `user_provider_selections` table.
 
-* `set_user_state.py`: This file creates a user object and uses a FileStateStore to save the user's selected provider to a JSON file.
+* `set_user_state.py`: This file creates a user object and uses the Postgres state store to save the user's selected provider and model.
 
-* `get_user_state.py`: This file retrieves a users selected provider from the JSON file created with `set_user_state.py`.
+* `get_user_state.py`: This file retrieves a user's selected provider and model from Postgres using `set_user_state.py`'s data.
 
 ## App Distribution / OAuth
 

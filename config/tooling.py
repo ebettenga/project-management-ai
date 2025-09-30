@@ -10,6 +10,8 @@ from typing import Any, Iterable, Mapping
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 
+import os
+
 
 class ToolApprovalSettings(BaseModel):
     """Approval metadata for wrapping tools with user confirmation."""
@@ -61,8 +63,20 @@ class MCPServerSettings(BaseModel):
 
     @staticmethod
     def _expand(value: str, project_root: Path) -> str:
+        # Expand {project_root} placeholder
         if "{project_root}" in value:
-            return value.replace("{project_root}", str(project_root))
+            value = value.replace("{project_root}", str(project_root))
+
+        # Expand ~ to home dir
+        value = os.path.expanduser(value)
+
+        # Expand $VAR and ${VAR} from environment
+        value = os.path.expandvars(value)
+
+        # Resolve relative paths against project_root
+        if not os.path.isabs(value) and (project_root / value).exists():
+            value = str((project_root / value).resolve())
+
         return value
 
 

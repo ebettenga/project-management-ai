@@ -11,6 +11,17 @@ transport = "stdio"
 command = "python"
 args = ["-m", "ai.agents.mcp.memory_agent"]
 
+[servers.base.jira_users]
+transport = "stdio"
+command = "python"
+args = ["-m", "ai.agents.mcp.jira_user_server"]
+
+[servers.base.jira_users.env]
+JIRA_URL = "${JIRA_URL}"
+JIRA_USERNAME = "${JIRA_USERNAME}"
+JIRA_EMAIL = "${JIRA_EMAIL}"
+JIRA_API_TOKEN = "${JIRA_API_TOKEN}"
+
 [servers.base.google]
 transport = "streamable_http"
 url = "http://localhost:8000/mcp"
