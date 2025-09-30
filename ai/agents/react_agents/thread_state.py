@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import threading
 import uuid
 from pathlib import Path
@@ -13,6 +12,8 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import psycopg
 from langchain_core.tools import StructuredTool
+
+from config import get_settings
 
 if TYPE_CHECKING:  # pragma: no cover
     from listeners.agent_interrupts.common import SlackContext
@@ -101,7 +102,7 @@ async def clear_thread_history(thread_id: Optional[str]) -> None:
     if not thread_id:
         return
 
-    conn_str = os.getenv("POSTGRES_URL")
+    conn_str = get_settings().postgres_url
     if not conn_str:
         logger.debug("POSTGRES_URL not configured; skipping thread history clear.")
         return

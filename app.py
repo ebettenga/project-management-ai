@@ -1,26 +1,33 @@
-import os
+import asyncio
 import logging
 
-from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
-from dotenv import load_dotenv
-import asyncio
-from listeners import register_listeners
+from slack_bolt.async_app import AsyncApp
+
+from config import get_settings
 from langgraph.checkpoint.postgres import PostgresSaver
+from listeners import register_listeners
 
-load_dotenv()
 
+settings = get_settings()
 
-if os.getenv("DEBUG"):
+if settings.debug:
     import debugpy
+
     debugpy.listen(("0.0.0.0", 5678))
 
-DB_URI = os.getenv("POSTGRES_URL")
-with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+db_uri = settings.postgres_url
+if not db_uri:
+    raise RuntimeError("POSTGRES_URL is not configured")
+
+with PostgresSaver.from_conn_string(db_uri) as checkpointer:
     checkpointer.setup()
 
 # Initialization
-app = AsyncApp(token=os.environ.get("SLACK_BOT_TOKEN"))
+if not settings.slack_bot_token:
+    raise RuntimeError("SLACK_BOT_TOKEN is not configured")
+
+app = AsyncApp(token=settings.slack_bot_token)
 logging.basicConfig(level=logging.DEBUG)
 
 # Register Listeners
@@ -28,7 +35,10 @@ register_listeners(app)
 
 
 async def main():
-    handler = AsyncSocketModeHandler(app, os.environ.get("SLACK_APP_TOKEN"))
+    if not settings.slack_app_token:
+        raise RuntimeError("SLACK_APP_TOKEN is not configured")
+
+    handler = AsyncSocketModeHandler(app, settings.slack_app_token)
     await handler.start_async()
 
 
