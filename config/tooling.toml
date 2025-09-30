@@ -37,7 +37,7 @@ allow_edit = true
 allow_reject = true
 
 [tool_approvals.asana_create_task]
-summary = "Approve creatong an Asana task?"
+summary = "Approve creating an Asana task?"
 context = "The agent will modify fields on an existing Asana task."
 allow_edit = true
 allow_reject = true
