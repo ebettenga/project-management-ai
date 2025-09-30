@@ -22,10 +22,45 @@ from ai.prompts import get_agent_prompt
 from listeners.agent_interrupts.common import SlackContext
 from listeners.user_management_platforms import get_user_management_platforms
 
+
+from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
+
+
 load_dotenv()
 DB_URI = os.getenv("POSTGRES_URL")
 
 logger = logging.getLogger(__name__)
+
+_langfuse_handler: Optional[Any] = None
+_langfuse_handler_init_failed = False
+
+
+def _get_langfuse_handler() -> Optional[Any]:
+    """Return a shared Langfuse callback handler if the SDK is available."""
+
+    global _langfuse_handler, _langfuse_handler_init_failed
+
+    if _langfuse_handler is not None or _langfuse_handler_init_failed:
+        return _langfuse_handler
+
+    if LangfuseCallbackHandler is None:
+        _langfuse_handler_init_failed = True
+        logger.debug(
+            "Langfuse callback handler unavailable; tracing disabled for this run."
+        )
+        return None
+
+    try:
+        _langfuse_handler = LangfuseCallbackHandler()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        _langfuse_handler_init_failed = True
+        logger.warning(
+            "Failed to initialise Langfuse callback handler; tracing disabled.",
+            exc_info=exc,
+        )
+        return None
+
+    return _langfuse_handler
 
 DEFAULT_APPROVAL_CONFIG: dict[str, dict[str, Any]] = {
     "jira_create_issue": {
@@ -461,10 +496,30 @@ async def ask_agent(
             "ask_agent expects a payload with a 'messages' key when using dict input."
         )
 
-    config = {"configurable": {}}
+    config: dict[str, Any] = {"configurable": {}}
 
     if thread_id:
         config["configurable"].update({"thread_id": thread_id})
+
+    handler = _get_langfuse_handler()
+    if handler:
+        config["callbacks"] = [handler]
+
+    metadata: dict[str, Any] = {}
+    session_identifier = thread_id or (
+        slack_context.thread_id if slack_context else None
+    )
+    if session_identifier:
+        metadata["langfuse_session_id"] = session_identifier
+
+    if slack_context:
+        metadata["langfuse_user_id"] = slack_context.user_id
+        metadata["slack_channel_id"] = slack_context.channel_id
+        if slack_context.thread_ts:
+            metadata["slack_thread_ts"] = slack_context.thread_ts
+
+    if metadata:
+        config["metadata"] = metadata
 
     server_config = _build_server_config(slack_context)
     client = MultiServerMCPClient(server_config)
