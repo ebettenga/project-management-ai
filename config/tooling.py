@@ -28,7 +28,6 @@ class MCPServerSettings(BaseModel):
     args: list[str] = Field(default_factory=list)
     url: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
-    inherit_env: bool = False
 
     model_config = ConfigDict(extra="allow")
 
@@ -36,7 +35,6 @@ class MCPServerSettings(BaseModel):
         self,
         *,
         project_root: Path,
-        base_env: Mapping[str, str],
     ) -> dict[str, Any]:
         """Materialise a configuration dict suitable for ``MultiServerMCPClient``."""
 
@@ -49,13 +47,11 @@ class MCPServerSettings(BaseModel):
         if self.url:
             config["url"] = self._expand(self.url, project_root)
 
-        env: dict[str, str] = {}
-        if self.inherit_env:
-            env.update(base_env)
         if self.env:
-            env.update({k: self._expand(v, project_root) for k, v in self.env.items()})
-        if env:
-            config["env"] = env
+            config["env"] = {
+                key: self._expand(value, project_root)
+                for key, value in self.env.items()
+            }
 
         extra = getattr(self, "model_extra", None) or {}
         for key, value in extra.items():
@@ -99,11 +95,9 @@ class ToolingConfig:
         *,
         file_model: ToolingFileModel,
         project_root: Path,
-        base_env: Mapping[str, str],
     ) -> None:
         self._model = file_model
         self._project_root = project_root
-        self._base_env = dict(base_env)
 
     @cached_property
     def agent_model(self) -> str:
@@ -124,7 +118,6 @@ class ToolingConfig:
         for name, server in self._model.servers.base.items():
             config[name] = server.as_client_config(
                 project_root=self._project_root,
-                base_env=self._base_env,
             )
 
         for slug in platform_slugs:
@@ -133,7 +126,6 @@ class ToolingConfig:
                 continue
             config[slug] = server.as_client_config(
                 project_root=self._project_root,
-                base_env=self._base_env,
             )
 
         return config
@@ -144,9 +136,7 @@ class ToolingConfig:
         path: Path,
         *,
         project_root: Path,
-        base_env: Mapping[str, str],
     ) -> "ToolingConfig":
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         file_model = ToolingFileModel.model_validate(data)
-        return cls(file_model=file_model, project_root=project_root, base_env=base_env)
-
+        return cls(file_model=file_model, project_root=project_root)

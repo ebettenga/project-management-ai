@@ -4,14 +4,12 @@ model = "openai:gpt-4.1"
 [servers.base.time]
 transport = "stdio"
 command = "python"
-args = ["{project_root}/ai/agents/mcp/time_server.py"]
-inherit_env = true
+args = ["-m", "ai.agents.mcp.time_server"]
 
 [servers.base.memory]
 transport = "stdio"
 command = "python"
-args = ["{project_root}/ai/agents/mcp/memory_agent.py"]
-inherit_env = true
+args = ["-m", "ai.agents.mcp.memory_agent"]
 
 [servers.base.google]
 transport = "streamable_http"
@@ -25,7 +23,6 @@ url = "http://localhost:8010/mcp"
 transport = "stdio"
 command = "npx"
 args = ["-y", "@roychri/mcp-server-asana"]
-inherit_env = true
 
 [tool_approvals.asana_add_task_dependencies]
 summary = "Approve editing Asana task dependencies?"
@@ -356,4 +353,3 @@ summary = "Approve renaming or updating a Google Tasks list?"
 context = "The agent will modify the metadata of the specified task list."
 allow_edit = true
 allow_reject = true
-

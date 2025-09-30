@@ -1,14 +1,13 @@
 from logging.config import fileConfig
 
-import os
-
 from sqlalchemy import pool
 
 from alembic import context
 
+import db.models  # noqa: F401 - ensure models are imported for metadata
+from config import get_settings
 from db.base import Base
 from db.session import get_engine
-import db.models  # noqa: F401 - ensure models are imported for metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -39,7 +38,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url") or os.getenv("POSTGRES_URL")
+    url = config.get_main_option("sqlalchemy.url") or get_settings().postgres_url
     if not url:
         raise RuntimeError("POSTGRES_URL must be set for offline migrations")
     context.configure(

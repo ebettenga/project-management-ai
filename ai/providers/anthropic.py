@@ -1,10 +1,11 @@
 from .base_provider import BaseAPIProvider
 import anthropic
-import os
 import logging
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
+
+from config import get_settings
 
 
 class AnthropicAPI(BaseAPIProvider):
@@ -32,7 +33,7 @@ class AnthropicAPI(BaseAPIProvider):
     }
 
     def __init__(self):
-        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
+        self.api_key = get_settings().anthropic_api_key
 
     def set_model(self, model_name: str):
         if model_name not in self.MODELS.keys():
